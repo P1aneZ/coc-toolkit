@@ -8425,13 +8425,16 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     skillFilter = "all";
     return fresh;
   }
-  function ensureCharacter(rulepack) {
-    const state4 = getState();
-    if (state4.character && state4.character.rulepackId === rulepack.manifest.id) return state4.character;
-    const fresh = createCharacter(rulepack, {
+  function blankDraft(rulepack) {
+    return createCharacter(rulepack, {
       name: "",
       meta: { age: 25, era: "1920s", occupationId: "", occupation: "" }
     });
+  }
+  function ensureCharacter(rulepack) {
+    const state4 = getState();
+    if (state4.character && state4.character.rulepackId === rulepack.manifest.id) return state4.character;
+    const fresh = blankDraft(rulepack);
     setState({ character: fresh });
     return fresh;
   }
@@ -8977,7 +8980,8 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     /** 占位规则包可能尚未实现车卡流程 */
     available: (rulepack) => Boolean(rulepack?.creation),
     render(container, ctx) {
-      const { rulepack, navigate: navigate2 } = ctx;
+      const { rulepack, navigate: navigate2, params } = ctx;
+      if (params?.fresh) setState({ character: blankDraft(rulepack) });
       let character = ensureCharacter(rulepack, ctx);
       bindWizardProgress(character);
       syncResources(rulepack, character);
@@ -12026,7 +12030,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return Boolean(backend.getPrefSync("guideSeen", false));
   }
   var GUIDE_STEPS = [
-    { label: "建一张调查员卡", desc: "车卡向导会按规则书流程走五步 —— 属性、技能点、背景都有校验，不会算错。", action: "go-wizard", actionLabel: "去车卡" },
+    { label: "建一张调查员卡", desc: "车卡向导会按规则书流程走五步 —— 属性、技能点、背景都有校验，不会算错。", action: "go-wizard", actionLabel: "去车卡", fresh: true },
     { label: "掷一次检定", desc: "在角色卡上点击属性、技能或理智即可检定，结果会带上骰值明细与随机种子。", action: "go-sheet", actionLabel: "去角色卡" },
     { label: "记一笔理智损失", desc: "填入损失格式（如 0/1D6），它会自动判定是否触发临时疯狂与不定期疯狂。", action: "go-sanity", actionLabel: "去理智" },
     { label: "跑团结束后结算成长", desc: "成功用过的技能会自动打上标记，到「日志 › 技能成长」一键结算。", action: "go-log", actionLabel: "去日志" },
@@ -12041,7 +12045,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <div style="font-family:var(--font-serif);font-size:20px">尚无调查员</div>
           <p class="muted small mt-3">先建一张卡。规则书要求的一切校验（技能点上限、信用评级范围、年龄调整）都交给程序。</p>
           <div class="btn-row mt-4">
-            <button type="button" class="btn btn-primary" data-action="go-wizard">创建第一名调查员</button>
+            <button type="button" class="btn btn-primary" data-action="go-wizard" data-fresh>创建第一名调查员</button>
             <button type="button" class="btn" data-action="go-characters">前往角色库</button>
           </div>
         </div>
@@ -12053,7 +12057,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <p class="muted small mt-3">角色库里还有 ${archive.length} 张卡，挑一张继续，或者新建一名调查员。</p>
         <div class="btn-row mt-4">
           <button type="button" class="btn btn-primary" data-action="go-characters">打开角色库</button>
-          <button type="button" class="btn" data-action="go-wizard">新建调查员</button>
+          <button type="button" class="btn" data-action="go-wizard" data-fresh>新建调查员</button>
         </div>
       </div>
     `;
@@ -12177,13 +12181,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       <div class="mt-4">
         <div class="stack">
           ${GUIDE_STEPS.map((s, i) => `
-            <div class="guide-step" data-row-action="${esc(s.action)}">
+            <div class="guide-step" data-row-action="${esc(s.action)}"${s.fresh ? " data-fresh" : ""}>
               <span class="guide-num">${i + 1}</span>
               <div>
                 <div>${esc(s.label)}</div>
                 <div class="field-help" style="margin-top:2px">${esc(s.desc)}</div>
               </div>
-              <button type="button" class="btn btn-sm" data-action="${esc(s.action)}">${esc(s.actionLabel)}</button>
+              <button type="button" class="btn btn-sm" data-action="${esc(s.action)}"${s.fresh ? " data-fresh" : ""}>${esc(s.actionLabel)}</button>
             </div>
           `).join("")}
         </div>
@@ -12265,7 +12269,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <p class="dim">全场状态板用于一次查看多名调查员的处境 —— 生命、理智、重伤与精神症状。
         目前角色库中不足两人，因此没有可并排的对象。</p>
         <div class="btn-row mt-3">
-          <button type="button" class="btn btn-sm" data-action="go-wizard">去创建调查员</button>
+          <button type="button" class="btn btn-sm" data-action="go-wizard" data-fresh>去创建调查员</button>
           <button type="button" class="btn btn-sm" data-action="go-npc">掷一个 NPC</button>
         </div>
       </div>`, "对局中快速掌握全体状态");
@@ -12455,7 +12459,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           return;
         }
         const dest = ACTION_VIEWS[btn.dataset.action];
-        if (dest) navigate2(dest);
+        if (dest) navigate2(dest, btn.hasAttribute("data-fresh") ? { fresh: true } : void 0);
       };
       const onClickRow = (event) => {
         const target = event.target;
@@ -12464,7 +12468,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         const row = target.closest("[data-row-action], [data-open-current]");
         if (!row) return;
         const view = row.hasAttribute("data-open-current") ? "sheet" : ACTION_VIEWS[row.dataset.rowAction];
-        if (view) navigate2(view);
+        if (view) navigate2(view, row.hasAttribute("data-fresh") ? { fresh: true } : void 0);
       };
       container.addEventListener("click", onClickRow);
       const onToggle = (event) => {
@@ -12611,7 +12615,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${emptyState(
         "尚无任何角色卡",
         "可使用「车卡向导」创建调查员，或使用「NPC 生成」随机生成临场角色；保存后均会出现在此列表。",
-        '<button type="button" class="btn btn-primary" data-action="go-wizard">去创建调查员</button> <button type="button" class="btn" data-action="go-npc">用 NPC 生成起一个</button>'
+        '<button type="button" class="btn btn-primary" data-action="go-wizard" data-fresh>去创建调查员</button> <button type="button" class="btn" data-action="go-npc">用 NPC 生成起一个</button>'
       )}
     `;
     }
@@ -12630,7 +12634,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     ${list.length ? `<div class="char-grid-cards">${list.map((i) => cardHtml(i, state4.character?.id === i.id)).join("")}</div>` : '<p class="dim">没有符合筛选条件的角色卡。</p>'}
 
     <div class="btn-row mt-5">
-      <button type="button" class="btn btn-primary" data-action="go-wizard">新建调查员</button>
+      <button type="button" class="btn btn-primary" data-action="go-wizard" data-fresh>新建调查员</button>
       <button type="button" class="btn" data-action="go-npc">掷一个 NPC</button>
       <span class="spacer"></span>
       <span class="hint dim">角色卡按规则包分开存放，切换规则包后这里显示的也会随之变化</span>
@@ -12801,8 +12805,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       const onClick = async (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.closest('[data-action="go-wizard"]')) {
-          navigate2("wizard");
+        const wizardBtn = target.closest('[data-action="go-wizard"]');
+        if (wizardBtn) {
+          navigate2("wizard", wizardBtn.hasAttribute("data-fresh") ? { fresh: true } : void 0);
           return;
         }
         if (target.closest('[data-action="go-npc"]')) {
@@ -15486,7 +15491,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           '<button type="button" class="btn btn-primary" data-action="go-wizard">去创建调查员</button>'
         );
         const btn = container.querySelector('[data-action="go-wizard"]');
-        const handler = () => navigate2("wizard");
+        const handler = () => navigate2("wizard", { fresh: true });
         btn?.addEventListener("click", handler);
         return () => btn?.removeEventListener("click", handler);
       }
@@ -15555,8 +15560,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       const onClick = (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
-        if (target.closest('[data-action="go-wizard"]')) {
-          navigate2("wizard");
+        const wizardBtn = target.closest('[data-action="go-wizard"]');
+        if (wizardBtn) {
+          navigate2("wizard", wizardBtn.hasAttribute("data-fresh") ? { fresh: true } : void 0);
           return;
         }
         if (target.closest("[data-habit-add], [data-habit-remove], [data-habit-record], [data-habit-phase]")) {
@@ -16122,7 +16128,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           '<button type="button" class="btn btn-primary" data-action="go-wizard">去创建调查员</button>'
         );
         const btn = container.querySelector('[data-action="go-wizard"]');
-        const handler = () => navigate2("wizard");
+        const handler = () => navigate2("wizard", { fresh: true });
         btn?.addEventListener("click", handler);
         return () => btn?.removeEventListener("click", handler);
       }
@@ -17041,7 +17047,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           '<button type="button" class="btn btn-primary" data-action="go-wizard">去创建调查员</button>'
         );
         const btn = container.querySelector('[data-action="go-wizard"]');
-        const handler = () => navigate2("wizard");
+        const handler = () => navigate2("wizard", { fresh: true });
         btn?.addEventListener("click", handler);
         return () => btn?.removeEventListener("click", handler);
       }
@@ -18037,10 +18043,12 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
     const found = listViews().find((v) => isViewAvailable(v, rulepack));
     return found?.id ?? null;
   }
-  function navigate(viewId) {
+  var navParams = null;
+  function navigate(viewId, params) {
     const rulepack = currentRulepack();
     const view = getView(viewId);
     if (!view || !isViewAvailable(view, rulepack)) return;
+    navParams = params ?? null;
     setState({ view: viewId });
     setUiPref("lastView", viewId);
     paint();
@@ -18049,7 +18057,9 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
     const rulepack = currentRulepack();
     const viewId = getState().view;
     renderNav(navigate, { rulepack, currentViewId: viewId });
-    renderViewport(viewId, { rulepack, navigate });
+    const params = navParams;
+    navParams = null;
+    renderViewport(viewId, { rulepack, navigate, params });
     renderTopbar();
   }
   function renderTopbar() {
