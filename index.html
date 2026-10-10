@@ -4595,6 +4595,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (a <= 79) return { band: "70–79", strConDex: 40, app: 20, eduChecks: 4 };
     return { band: "80–89", strConDex: 80, app: 25, eduChecks: 4 };
   }
+  function rollLuck(rng) {
+    return rollDice("3d6*5", rng).total;
+  }
   function rollCharacteristics(rng) {
     const values = {};
     const detail = [];
@@ -6603,6 +6606,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
      */
     resolveWithRoll,
     creation: {
+      rollLuck,
       rollCharacteristics,
       assignArray,
       applyAge,
@@ -8632,6 +8636,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         ${total < range.min || total > range.max ? `<span class="lv-fail">当前合计 ${total} 不在这个范围内 —— 投入强度与规则书默认档位不同。</span>` : "当前合计落在默认区间内。"}
         ${buyOk.ok || total === 0 ? "" : `<br>按购点口径尚不达标：${esc(buyOk.problems.slice(0, 3).join("；"))}${buyOk.problems.length > 3 ? " 等" : ""}。手动分配时不必严格等于 ${rulepack.creation.POINT_BUY?.total}，以守秘人的裁定为准。`}
       </div>
+
+      <div class="btn-row mt-4">
+        <button type="button" class="btn btn-sm" data-action="roll-luck">重掷幸运</button>
+        <span class="hint dim">幸运不参与购点（单独按 3D6×5 掷出）—— 掷骰生成与标准数组已自动掷，此处可单独重掷。</span>
+      </div>
     </div>
 
     <div class="section">
@@ -9331,7 +9340,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           ids.forEach((id, i) => {
             character.characteristics[id] = array[i];
           });
-          character.characteristics.LUCK = rng.int(1, 6) * 5 + rng.int(1, 6) * 5 + rng.int(1, 6) * 5;
+          character.characteristics.LUCK = rulepack.creation.rollLuck(rng);
           clearAgeApplied(character);
           character.skills = rulepack.creation.refreshSkillBases(character.skills, character.characteristics);
           syncResources(rulepack, character);
@@ -9353,12 +9362,21 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           }
           const values = rulepack.creation.randomPointBuy(rng, total);
           Object.assign(character.characteristics, values);
+          character.characteristics.LUCK = rulepack.creation.rollLuck(rng);
           clearAgeApplied(character);
           character.skills = rulepack.creation.refreshSkillBases(character.skills, character.characteristics);
           syncResources(rulepack, character);
           saveCharacter(character);
           const sum = rulepack.creation.characteristicTotal(values);
-          toast(total === raw ? `已按 ${sum} 点随机分配八项属性` : `可支配点数按 5 对齐为 ${total}，已按此分配`);
+          toast(total === raw ? `已按 ${sum} 点随机分配八项属性（幸运已单独掷出）` : `可支配点数按 5 对齐为 ${total}，已按此分配（幸运已单独掷出）`);
+          paint2();
+          return;
+        }
+        if (action === "roll-luck") {
+          character.characteristics.LUCK = rulepack.creation.rollLuck(rng);
+          syncResources(rulepack, character);
+          saveCharacter(character);
+          toast(`幸运重掷为 ${character.characteristics.LUCK}`);
           paint2();
           return;
         }
