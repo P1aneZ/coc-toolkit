@@ -228,6 +228,18 @@ button.save-chip.is-bad:hover { border-color: var(--danger); color: var(--danger
   white-space: nowrap;
 }
 .char-chip-stats { font-size: 11px; color: var(--text-3); white-space: nowrap; }
+/* 「临时疯狂」标记：与危险提示同色系 —— 它是当前生效中的异常状态，不是普通徽章 */
+.char-chip-flag {
+  padding: 0 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--danger-line);
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 11px;
+  line-height: 16px;
+  white-space: nowrap;
+  flex: none;
+}
 .rp-label {
   font-size: 12px;
   color: var(--text-2);
@@ -1397,6 +1409,10 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
 }
 .pending-block .field-help { margin-bottom: var(--s2); }
 .pending-block .btn-row { margin-top: 0; }
+/* 临时疯狂状态块：与「待办」共用骨架，但用危险色 ——
+   它是角色身上的异常状态（不是一件待办的事），颜色分工必须看得出来 */
+.pending-block.is-danger { border-left-color: var(--danger); }
+.pending-block.is-danger .pending-badge { background: var(--danger); color: var(--bg-base); }
 
 /* ============================ 向导：滚动时保持定位 ============================ */
 
@@ -12151,6 +12167,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   function attentionHtml(rulepack, character) {
     const items = [];
     if (character) {
+      const tempInsane = character.extra?.temporaryInsanity;
+      if (tempInsane) {
+        items.push({
+          text: `<b>${esc(character.name || "当前调查员")}</b> 正处于临时疯狂（约 ${num(tempInsane.hours)} 小时）—— 演出中应体现恐惧症或躁狂症`,
+          action: "go-sanity",
+          actionLabel: "去理智页"
+        });
+      }
       const san = character.resources?.san;
       const sanPct = san?.max ? num(san.current) / num(san.max) * 100 : 100;
       if (sanPct <= 30) {
@@ -13143,23 +13167,35 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     };
   }
   function dieRow(detail) {
-    const { tensRolls = [], ones = 0, chosenTens, mode } = detail;
+    const {
+      tensRolls = [],
+      ones = 0,
+      chosenTens,
+      mode,
+      finalRoll
+    } = detail;
     const tensHtml = tensRolls.map((t) => {
       const used = t === chosenTens;
       const value = t * 10;
       const display = value === 0 ? "00" : String(value).padStart(2, "0");
       return `<div class="die die-tens ${used ? "die-used" : "die-drop"}" title="${used ? "采用" : "舍弃"}">
-      <span class="die-tag">十位</span>${display}</div>`;
+      <span class="die-tag">十位骰</span>${display}</div>`;
     }).join("");
+    const tensValue = (Number(chosenTens) || 0) * 10;
+    const tensDisplay = tensValue === 0 ? "00" : String(tensValue).padStart(2, "0");
+    const isDoubleZero = tensValue + ones === 0;
+    const zeroNote = isDoubleZero ? mode === "bonus" ? "，双零在奖励骰下取 1" : "，双零读作 100" : "";
+    const modeNote = mode === "bonus" ? "奖励骰：取较低十位" : mode === "penalty" ? "惩罚骰：取较高十位" : "常规掷骰";
     return `
     <div class="roll-dice">
       ${tensHtml}
-      <div class="die" ${mode === "normal" ? 'data-used="1"' : ""} title="个位">
-        <span class="die-tag">个位</span>${ones}
+      <div class="die" ${mode === "normal" ? 'data-used="1"' : ""} title="个位骰">
+        <span class="die-tag">个位骰</span>${ones}
       </div>
     </div>
     <div class="tiny dim">
-      ${mode === "bonus" ? "奖励骰：取较低十位" : mode === "penalty" ? "惩罚骰：取较高十位" : "常规掷骰（十位 + 个位）"}
+      十位骰 ${tensDisplay} + 个位骰 ${ones} = <b>${num(finalRoll)}</b>${zeroNote}
+      <span class="dim">· ${modeNote}</span>
     </div>
   `;
   }
@@ -13187,7 +13223,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         ${d.penaltyDice ? `<span>惩罚骰 <b>−${num(d.penaltyDice)}</b></span>` : ""}
         ${d.modifier ? `<span>修正 <b>${d.modifier > 0 ? "+" : ""}${num(d.modifier)}</b></span>` : ""}
       </div>
-      ${d.diceIgnored || d.kind === "sanity" ? '<div class="roll-note">理智检定不适用奖励骰与惩罚骰。</div>' : ""}
+      ${d.diceIgnored ? '<div class="roll-note">按当前村规，本次检定的奖励骰与惩罚骰未参与计算。</div>' : ""}
       ${d.fumbleBasis === "skill<50" ? '<div class="roll-note">目标值低于 50，掷出 96–100 视为大失败。</div>' : ""}
       ${luckSpent ? "" : `<div class="roll-note mono">种子 ${esc(seed)}</div>`}
     </div>
@@ -13218,7 +13254,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         </div>
         <div class="push-reason">「${esc(entry.pushReason ?? "")}」</div>
         ${failed ? `
-          <div class="push-note">${esc(push.pushFailureNote(entry.pushReason ?? "这次尝试"))}</div>
+          <div class="push-note">${esc(push.pushFailureNote(entry.pushReason ?? "本次尝试"))}</div>
           <details class="push-consequences mt-3">
             <summary>失败后果参考（由守秘人裁定）</summary>
             ${push.CONSEQUENCES.map((g) => `
@@ -13371,17 +13407,17 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return `
     <div class="settle-block">
       <div class="settle-head">
-        <b>结算这次理智损失</b>
-        <span class="dim tiny">档位按上面这次检定：${entry.result.isSuccess ? "成功档" : "失败档"}</span>
+        <b>结算本次理智损失</b>
+        <span class="dim tiny">按上次检定的结果：${entry.result.isSuccess ? "成功档" : "失败档"}</span>
       </div>
       <div class="row mt-3" style="flex-wrap:wrap">
         <input type="text" data-settle="spec" value="${esc(state4.settleSpec ?? "0/1D6")}"
           placeholder="0/1D6" style="flex:0 0 110px" aria-label="损失格式">
         <input type="text" data-settle="source" value="${esc(state4.settleSource ?? "")}"
           placeholder="来源描述（可选）" style="flex:1;min-width:120px" aria-label="来源描述">
-        <button type="button" class="btn btn-primary btn-sm" data-settle-action="apply">扣下去</button>
+        <button type="button" class="btn btn-primary btn-sm" data-settle-action="apply">记录损失</button>
       </div>
-      <p class="field-help">这样就地结算，不必切到理智页重填一遍。格式形如 <span class="mono">0/1D6</span>（成功档/失败档）。</p>
+      <p class="field-help">在本处直接结算，无需返回理智页重新填写。格式形如 <span class="mono">0/1D6</span>（成功档 / 失败档）。</p>
     </div>
   `;
   }
@@ -13495,6 +13531,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const effMode = isSanity && mode === "combined" ? "single" : mode;
     const opposed = effMode === "opposed";
     const combined = effMode === "combined";
+    const rules = rulepack.getHouseRules?.() ?? {};
+    const diceLocked = isSanity && rules.sanityIgnoresDice !== false;
+    const bonusShown = diceLocked ? 0 : num(bonus);
+    const penaltyShown = diceLocked ? 0 : num(penalty);
     const MODE_HINTS = {
       single: "掷 1D100，等于或低于目标值即成功。",
       opposed: "双方各自掷一次 1D100，按成功等级比较高下。平手的裁定由规则包给出。",
@@ -13510,8 +13550,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${isSanity ? "" : `<button type="button" class="seg ${effMode === "combined" ? "is-on" : ""}" data-mode="combined">联合检定</button>`}
     </div>
 
-    ${isSanity ? `<p class="field-help">理智检定是规则里的例外集合 —— 不吃奖励骰与惩罚骰、不能用幸运、不能推骰，
-      同样不参与联合检定。</p>` : ""}
+    ${isSanity ? `<p class="field-help">理智检定是规则中的例外：${diceLocked ? "奖励骰、惩罚骰、" : ""}幸运改判与孤注一掷均不适用，亦不参与联合检定。</p>` : ""}
 
     <div class="check-drawer">
       <div>
@@ -13538,11 +13577,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <div class="grid-2${opposed ? "" : " mt-4"}">
             <label class="field">
               <span class="field-label" ${tipAttrs({ title: "奖励骰", body: "额外掷一颗十位骰，取其中更有利者。适用于环境或准备明显占优的场合，每项检定至多两枚。" })}>奖励骰</span>
-              <input type="number" data-field="bonus" value="${num(bonus)}" min="0" max="2" ${isSanity ? "disabled" : ""}>
+              <input type="number" data-field="bonus" value="${num(bonusShown)}" min="0" max="2" ${diceLocked ? "disabled" : ""}>
             </label>
             <label class="field">
               <span class="field-label" ${tipAttrs({ title: "惩罚骰", body: "额外掷一颗十位骰，取其中更不利者。与奖励骰互相抵消，两者并存时按净差额计算。" })}>惩罚骰</span>
-              <input type="number" data-field="penalty" value="${num(penalty)}" min="0" max="2" ${isSanity ? "disabled" : ""}>
+              <input type="number" data-field="penalty" value="${num(penaltyShown)}" min="0" max="2" ${diceLocked ? "disabled" : ""}>
             </label>
           </div>
 
@@ -13552,7 +13591,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             <span class="field-help">用于临时加减我方目标值，例如工具称手 +10。改动会即时反映在右侧的目标值上。</span>
           </label>
 
-          ${isSanity ? '<p class="field-help">理智检定不适用奖励骰与惩罚骰，因此两项已停用。</p>' : ""}
+          ${diceLocked ? '<p class="field-help">按当前村规（规则书标准），理智检定不适用奖励骰与惩罚骰，两项已停用。如需在本团放开，可在「存档与数据 › 村规」中关闭「理智检定忽略奖惩骰」。</p>' : ""}
 
           <div class="btn-row mt-4">
             <button type="button" class="btn btn-primary" data-action="roll">${rollText}</button>
@@ -13630,6 +13669,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>`;
   }
   function openCheckPanel({ rulepack, character, target }) {
+    const sanityDiceLocked = target.kind === "sanity" && rulepack.getHouseRules?.().sanityIgnoresDice !== false;
     panel = {
       label: target.label,
       value: num(target.value),
@@ -13638,8 +13678,8 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       hint: target.hint,
       // 难度与奖惩骰**沿用上一次**（见 lastParams 的说明）
       difficulty: lastParams.difficulty,
-      bonus: lastParams.bonus,
-      penalty: lastParams.penalty,
+      bonus: sanityDiceLocked ? 0 : lastParams.bonus,
+      penalty: sanityDiceLocked ? 0 : lastParams.penalty,
       modifier: lastParams.modifier,
       /**
        * 检定模式：单方 / 对抗 / 联合。
@@ -14064,7 +14104,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     saveCharacter(character);
     paintResult();
     refreshSideStats();
-    toast(`已扣 ${loss.total} 点理智（剩余 ${sanAfter}）`, "bad", 4200);
+    toast(`理智已扣除 ${loss.total} 点（剩余 ${sanAfter}）`, "bad", 4200);
     if (judgement.notes.length) {
       toast(judgement.notes.join("；"), judgement.severity === "permanent" ? "bad" : "info", 5600);
     }
@@ -15300,6 +15340,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>
   `;
   }
+  function tempInsanityBanner(character) {
+    const t = character.extra?.temporaryInsanity;
+    if (!t) return "";
+    return notice(
+      `<span><b>临时疯狂</b> · 持续约 ${num(t.hours)} 小时 —— 演出中应体现恐惧症或躁狂症；到期后可在理智页标记结束。</span>`,
+      "danger"
+    );
+  }
   function buildHtml5(rulepack, character) {
     const derived3 = computeDerived(rulepack, character);
     const occ = rulepack.datasets?.occupationsById?.get(character.meta?.occupationId);
@@ -15448,6 +15496,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             <span>状态</span>
             <span class="dim tiny">资源条可直接拖动</span>
           </div>
+          ${tempInsanityBanner(character)}
           <div class="grid-4">${resourceCards}</div>
         </div>
 
@@ -15645,7 +15694,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
               label: kind === "skill" ? `${label}检定` : label,
               value,
               kind,
-              hint: kind === "sanity" ? "理智检定不适用奖励骰与惩罚骰。单次损失 5 点及以上需再做智力检定。" : void 0
+              /**
+               * 这句只讲「这个检定在做什么」。
+               *
+               * ⚠️ 不要把「不适用奖励骰与惩罚骰」写在这里 —— 那条规则**随村规变化**
+               * （`sanityIgnoresDice` 可关闭），而这条 hint 是写死的字符串：
+               * 村规放开之后它会继续显示「不适用」，与已经可编辑的输入框自相矛盾。
+               * 当前是否适用由检定抽屉自己读村规后说明（见 `checkPanel.js` 的 `diceLocked`）。
+               */
+              hint: kind === "sanity" ? "理智检定的目标值为当前理智；单次损失 5 点及以上须再做一次智力检定。" : void 0
             }
           });
           return;
@@ -16004,6 +16061,24 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       </div>
     </div>`;
   }
+  function tempInsanityBlockHtml(state4) {
+    const hours = num(state4.hours, 0);
+    const day = num(state4.day, 0);
+    return `
+    <div class="pending-block is-danger">
+      <div class="pending-head">
+        <span class="pending-badge">临时疯狂</span>
+        <b>持续约 ${hours} 小时</b>
+        <span class="dim tiny">${day ? `第 ${day} 日触发 · ` : ""}由智力检定通过引发</span>
+      </div>
+      <p class="field-help">恢复途径：按规则，临时疯狂持续 1D10 小时，到期即自然恢复；
+        期间演出应体现恐惧症或躁狂症的表现（可在下方「疯狂发作」区抽取症状）。
+        桌上时间过去之后，点下方按钮标记结束。</p>
+      <div class="btn-row">
+        <button type="button" class="btn btn-sm" data-action="end-temp-insanity">结束临时疯狂</button>
+      </div>
+    </div>`;
+  }
   function buildHtml6(rulepack, character) {
     const sanId = rulepack.sanityResourceId;
     const san = character.resources?.[sanId];
@@ -16024,7 +16099,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
     ${pendingIntCheckBlockHtml(rulepack, character)}
 
-    ${tempInsanity ? notice(`调查员正处于临时疯狂状态（约 ${num(tempInsanity.hours)} 小时）—— 应在演出中加入恐惧症或躁狂症的表现。`, "danger") : ""}
+    ${tempInsanity ? tempInsanityBlockHtml(tempInsanity) : ""}
 
     <div class="grid-2 mb-4">
       <div class="stat" style="text-align:left">
@@ -16166,7 +16241,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         source: container.querySelector('[data-field="source"]')?.value ?? ""
       });
       const onClick = (event) => {
-        var _a, _b;
+        var _a, _b, _c;
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
         if (target.closest('[data-action="go-wizard"]')) {
@@ -16232,7 +16307,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           const id = target.closest("[data-fix-source]").dataset.fixSource;
           const entry = (character.log ?? []).find((e) => e.id === id);
           if (!entry) return;
-          openModal("补充这次变动的原因", `
+          openModal("补充本次变动的原因", `
           <p class="small mb-4">这条记录来自「直接改数值」（拖条或 ±1），没有写明原因 ——
           它不被当作一次事件，所以没有走检定与判定。补一句便于事后对账。</p>
           <label class="field">
@@ -16445,14 +16520,18 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
         if (action === "int-check") {
           if (!character.extra?.pendingIntCheck) {
-            toast("这条待办已经处理过了；再次单次损失 5 点及以上才会重新出现", "bad", 4200);
+            toast("该待办已处理完成；再次发生 5 点及以上的单次损失时才会重新出现", "bad", 4200);
             return;
           }
           const rng2 = createRng(newSeed());
           const outcome = rulepack.sanity.resolveTempInsanity(num(character.characteristics?.INT), rng2);
           character.extra ?? (character.extra = {});
           if (outcome.insane) {
-            character.extra.temporaryInsanity = { hours: outcome.hours, at: Date.now() };
+            character.extra.temporaryInsanity = {
+              hours: outcome.hours,
+              at: Date.now(),
+              day: num(character.extra.currentDay, 1)
+            };
           }
           delete character.extra.pendingIntCheck;
           saveCharacter(character);
@@ -16474,6 +16553,26 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           container.innerHTML = buildHtml6(rulepack, character);
           return;
         }
+        if (action === "end-temp-insanity") {
+          const state4 = character.extra?.temporaryInsanity;
+          if (!state4) {
+            toast("当前不处于临时疯狂状态", "info");
+            return;
+          }
+          delete character.extra.temporaryInsanity;
+          (_a = character.extra).insanityLog ?? (_a.insanityLog = []);
+          character.extra.insanityLog.push({
+            kind: "恢复",
+            label: "临时疯狂结束",
+            detail: `持续约 ${num(state4.hours)} 小时`,
+            day: num(character.extra.currentDay, 1),
+            at: Date.now()
+          });
+          saveCharacter(character);
+          toast("已标记临时疯狂结束");
+          container.innerHTML = buildHtml6(rulepack, character);
+          return;
+        }
         const rng = createRng();
         let drawn = null;
         let kind = "";
@@ -16492,7 +16591,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
         if (drawn) {
           character.extra ?? (character.extra = {});
-          (_a = character.extra).insanityLog ?? (_a.insanityLog = []);
+          (_b = character.extra).insanityLog ?? (_b.insanityLog = []);
           character.extra.insanityLog.push({
             kind,
             label: drawn.label,
@@ -16503,7 +16602,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           if (action === "draw-phobia") addCondition(character, "phobias", drawn);
           if (action === "draw-mania") addCondition(character, "manias", drawn);
           if (action === "draw-immediate" || action === "draw-summary") {
-            (_b = character.extra).boutsOfMadness ?? (_b.boutsOfMadness = []);
+            (_c = character.extra).boutsOfMadness ?? (_c.boutsOfMadness = []);
             character.extra.boutsOfMadness.push({
               kind,
               label: drawn.label,
@@ -16573,7 +16672,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             entry.source = value;
             await saveCharacter(character);
             paint2();
-            toast("已补上这次变动的原因");
+            toast("已记录本次变动的原因");
           } else if (entry) {
             toast("未填写，保持原样", "info");
           }
@@ -17327,6 +17426,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     }
     return null;
   }
+  var SKILL_NUMERIC_FIELDS = ["base", "occupation", "interest", "growth"];
+  function firstSkillProblem(skill, label) {
+    const numeric = {};
+    for (const field of SKILL_NUMERIC_FIELDS) {
+      if (field in skill) numeric[field] = skill[field];
+    }
+    return firstNumberMapProblem(numeric, label);
+  }
   var BACKUP_TOOL_ID = "investigator-toolkit";
   var PREF_WHITELIST = ["customPhobias", "customManias", "bgEntryTables", "combat", "chase"];
   var PREF_PREFIX_WHITELIST = ["houseRules:"];
@@ -17446,7 +17553,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       if (!isPlainObject(data.skills)) return "skills 字段结构异常（应为对象）";
       for (const [key, skill] of Object.entries(data.skills)) {
         if (!isPlainObject(skill)) return `技能「${key}」结构异常（应为对象）`;
-        const skillProblem = firstNumberMapProblem(skill, `技能「${key}」`);
+        const skillProblem = firstSkillProblem(skill, `技能「${key}」`);
         if (skillProblem) return skillProblem;
       }
     }
@@ -18095,9 +18202,11 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
     const hp = ch.resources?.hp ?? {};
     const san = ch.resources?.san ?? {};
     const name = String(ch.name || "").trim() || "未命名调查员";
+    const tempInsane = Boolean(ch.extra?.temporaryInsanity);
     host.innerHTML = `<button type="button" class="char-chip" data-topbar-character
-    title="当前调查员：${esc(name)}（点击回到角色卡）">
+    title="当前调查员：${esc(name)}${tempInsane ? "（临时疯狂中）" : ""}（点击回到角色卡）">
       <span class="char-chip-name">${esc(name)}</span>
+      ${tempInsane ? '<span class="char-chip-flag">临时疯狂</span>' : ""}
       <span class="char-chip-stats mono">HP ${num(hp.current)}/${num(hp.max)} · SAN ${num(san.current)}/${num(san.max)}</span>
     </button>`;
   }
