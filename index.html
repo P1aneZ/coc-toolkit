@@ -184,6 +184,16 @@ p { margin: 0; }
   letter-spacing: .16em;
   text-transform: uppercase;
 }
+/**
+ * 品牌行里的版本号：不跟着大写（不然 `v0.1.9` 会变成 `V0.1.9`）、
+ * 比副标题略亮一档好认，但**不用强调色** —— 本项目的约定是有颜色的块只表达「当前选中的那一项」。
+ */
+.brand-version {
+  text-transform: none;
+  letter-spacing: .06em;
+  color: var(--text-2);
+  font-variant-numeric: tabular-nums;
+}
 
 /* 顶栏右侧是固定内容：不许被左侧品牌挤压缩窄（否则「规则系统」会折成两行） */
 .topbar-actions { display: flex; align-items: center; gap: var(--s3); flex: none; }
@@ -425,6 +435,17 @@ label.field { display: block; margin-bottom: var(--s4); }
   color: var(--text-3);
   margin-top: var(--s1);
   line-height: 1.5;
+}
+/**
+ * 检定抽屉顶部的「对象说明」。
+ *
+ * 只做分区（一条分隔线），**不用强调色** —— 本项目的约定是有颜色的块只表达「当前选中的那一项」，
+ * 这里既不是选中也不是状态，用色块会让它看起来像个可点的东西。
+ */
+.target-desc {
+  padding-bottom: var(--s3);
+  border-bottom: 1px solid var(--line-1);
+  margin-bottom: var(--s3);
 }
 .field-error {
   font-size: 12px;
@@ -2724,6 +2745,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (!tipEl) {
       tipEl = document.createElement("div");
       tipEl.className = "tip";
+      tipEl.id = TIP_ID;
       tipEl.setAttribute("role", "tooltip");
       tipEl.setAttribute("aria-hidden", "true");
       document.body.appendChild(tipEl);
@@ -2755,6 +2777,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     el2.classList.add("is-visible");
     el2.setAttribute("aria-hidden", "false");
     currentTarget = target;
+    if (describedTarget && describedTarget !== target) describedTarget.removeAttribute("aria-describedby");
+    target.setAttribute("aria-describedby", el2.id);
+    describedTarget = target;
     const rect = target.getBoundingClientRect();
     place(
       anchor?.x ?? rect.left + rect.width / 2,
@@ -2765,6 +2790,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (showTimer) {
       clearTimeout(showTimer);
       showTimer = null;
+    }
+    if (describedTarget) {
+      describedTarget.removeAttribute("aria-describedby");
+      describedTarget = null;
     }
     if (!tipEl) return;
     tipEl.classList.remove("is-visible");
@@ -2814,13 +2843,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (meta) parts.push(`data-tip-meta="${esc(meta)}"`);
     return parts.join(" ");
   }
-  var tipEl, showTimer, currentTarget, SHOW_DELAY, OFFSET_X, OFFSET_Y, EDGE;
+  var tipEl, showTimer, currentTarget, describedTarget, TIP_ID, SHOW_DELAY, OFFSET_X, OFFSET_Y, EDGE;
   var init_tooltip = __esm({
     "src/ui/tooltip.js"() {
       init_dom();
       tipEl = null;
       showTimer = null;
       currentTarget = null;
+      describedTarget = null;
+      TIP_ID = "app-tip";
       SHOW_DELAY = 90;
       OFFSET_X = 16;
       OFFSET_Y = 18;
@@ -13998,7 +14029,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       combined: "只掷一次骰，结果同时与每个技能比较 —— 不是各掷一次。适合「两件事必须同时做好」的场合。"
     };
     const rollText = rollButtonText({ ...state4, mode: effMode }, rulepack);
+    const targetInfo = describeTarget(rulepack, character, panel);
+    const descBlock = targetInfo ? `<div class="target-desc">
+        <p class="dim small" style="margin:0 0 var(--s1)">${esc(targetInfo.label)} · 说明</p>
+        <p style="margin:0">${esc(targetInfo.body)}</p>
+      </div>` : "";
     return `
+    ${descBlock}
     <p class="field-help" style="margin-top:0">${esc(hint ?? MODE_HINTS[effMode])}</p>
 
     <div class="seg-row" role="group" aria-label="检定模式">
@@ -14124,6 +14161,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           ${esc(c.label)} <span class="mono">${num(c.roll)}</span>
         </span>`).join("")}
     </div>`;
+  }
+  function describeTarget(rulepack, character, panel2) {
+    const id = String(panel2.targetId ?? "");
+    const skill = character?.skills?.[id];
+    if (skill?.desc) return { label: skill.label ?? panel2.label, body: skill.desc };
+    const bare = id.replace(/^@/, "");
+    const attr = (rulepack?.characteristics ?? []).find((c) => c.id === bare);
+    if (attr?.desc) return { label: attr.label ?? panel2.label, body: attr.desc };
+    return null;
   }
   function openCheckPanel({ rulepack, character, target }) {
     const sanityDiceLocked = target.kind === "sanity" && rulepack.getHouseRules?.().sanityIgnoresDice !== false;
@@ -15662,6 +15708,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   var RADAR_OPEN_PREF = "sheetRadarOpen";
   var showAllSkills = Boolean(backend.getPrefSync(SKILLS_ALL_PREF, false));
   var showSkillAlloc = false;
+  var skillFilter2 = "";
   var BG_FIELDS = [
     ["description", "个人描述"],
     ["beliefs", "思想与信念"],
@@ -15854,7 +15901,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     })).filter((s) => s.total > 0 || s.spent > 0).sort((a, b) => b.spent - a.spent || b.total - a.total);
     const SPENT_FLOOR = 5;
     const commonSkills = allSkills.filter((s) => coreIds.has(s.id) || s.spent >= SPENT_FLOOR);
-    const shown = showAllSkills ? allSkills : commonSkills;
+    const skillQuery = skillFilter2.trim().toLowerCase();
+    const matchedSkills = skillQuery ? allSkills.filter((s) => String(s.label).toLowerCase().includes(skillQuery)) : null;
+    const shown = matchedSkills ?? (showAllSkills ? allSkills : commonSkills);
     const skillRowHtml = (s) => {
       const isCore = coreIds.has(s.id);
       const tip = tipAttrs({
@@ -15863,7 +15912,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         meta: `基础值 ${num(s.base)} · 困难 ${Math.floor(s.total / 2)} · 极限 ${Math.floor(s.total / 5)}${isCore ? " · 本职技能" : ""}`
       });
       return `
-      <tr class="is-checkable ${isCore ? "is-core" : ""}" data-check-target="${esc(s.id)}" data-check-label="${esc(s.label)}" data-check-kind="skill">
+      <tr class="is-checkable ${isCore ? "is-core" : ""}" data-check-target="${esc(s.id)}" data-check-label="${esc(s.label)}" data-check-kind="skill"${matchedSkills ? ' tabindex="0"' : ""}>
         <td>
           <span class="skill-cell">
             <span ${tip}>${esc(s.label)}</span>
@@ -15894,7 +15943,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const skillCard = `
     <div class="card card-tight card-task" data-skill-section tabindex="-1" role="region" aria-label="技能检定">
       <div class="card-title row" style="justify-content:space-between">
-        <span>技能 <span class="dim tiny">常用 ${commonSkills.length} / 全部 ${allSkills.length}</span></span>
+        <span>技能 <span class="dim tiny">${matchedSkills ? `匹配 ${shown.length} 项` : `常用 ${commonSkills.length} / 全部 ${allSkills.length}`}</span></span>
+        <input type="search" data-skill-filter value="${esc(skillFilter2)}" placeholder="按名称筛选技能"
+          style="max-width:190px" autocomplete="off" aria-label="按名称筛选技能">
         <button type="button" class="btn btn-sm" data-action="toggle-skills">
           ${showAllSkills ? `只看常用（${commonSkills.length} 项）` : `显示全部 ${allSkills.length} 项`}
         </button>
@@ -15902,10 +15953,12 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           ${showSkillAlloc ? "隐藏分配明细" : "分配明细"}
         </button>
       </div>
-      ${chunks.some((c) => c.length) ? `<div class="skill-cols" data-cols="${chunks.length}">${chunks.map(skillTableHtml).join("")}</div>` : '<p class="dim">尚无加过点的技能 —— 请在车卡向导中分配，或点击上方的「显示全部」。</p>'}
+      ${chunks.some((c) => c.length) ? `<div class="skill-cols" data-cols="${chunks.length}">${chunks.map(skillTableHtml).join("")}</div>` : `<p class="dim">${matchedSkills ? `没有匹配「${esc(skillFilter2.trim())}」的技能 —— 换个说法，或清空筛选框。` : "尚无加过点的技能 —— 请在车卡向导中分配，或点击上方的「显示全部」。"}</p>`}
       <p class="field-help" style="margin:var(--s3) 0 0">黄铜色 = 本职技能。常用 = 本职技能，或加点 5 点以上的技能。
       默认只列「总值 / 困难 / 极限」—— 桌上要读的就是这三个；「初始 / 职业 / 兴趣 / 成长」是记账列，
-      点「分配明细」才展开（幕间核对与花幸运改判时用）。</p>
+      点「分配明细」才展开（幕间核对与花幸运改判时用）。
+      左侧「按名称筛选技能」输入后只留匹配项，**结果行可用键盘逐个走到、回车打开检定** ——
+      技能说明在悬停提示里，键盘与触屏改用检定抽屉阅读（点开抽屉不会掷骰）。</p>
     </div>
   `;
     const gear = character.extra?.gear ?? {};
@@ -16374,14 +16427,39 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
       };
       for (const type of ["click", "input", "change"]) modalBody?.addEventListener(type, onModalEvent);
+      const onSkillFilter = (event) => {
+        const target = event.target;
+        if (!(target instanceof HTMLElement) || !("skillFilter" in target.dataset)) return;
+        skillFilter2 = target.value;
+        const pos = target.selectionStart;
+        paint2();
+        const next = container.querySelector("[data-skill-filter]");
+        if (next) {
+          next.focus();
+          next.setSelectionRange(pos, pos);
+        }
+      };
+      const onKeydown = (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const target = event.target;
+        if (!(target instanceof HTMLElement)) return;
+        const row = target.closest("[data-check-target]");
+        if (!row || target !== row) return;
+        event.preventDefault();
+        row.click();
+      };
       paint2();
       container.addEventListener("click", onClick);
       container.addEventListener("change", onChange);
       container.addEventListener("input", onRangeInput);
+      container.addEventListener("input", onSkillFilter);
+      container.addEventListener("keydown", onKeydown);
       return () => {
         container.removeEventListener("click", onClick);
         container.removeEventListener("change", onChange);
         container.removeEventListener("input", onRangeInput);
+        container.removeEventListener("input", onSkillFilter);
+        container.removeEventListener("keydown", onKeydown);
         for (const type of ["click", "input", "change"]) modalBody?.removeEventListener(type, onModalEvent);
       };
     }
@@ -17900,7 +17978,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.8";
+  var APP_VERSION = "0.1.9";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
@@ -18171,6 +18249,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>
   `, `${packs.length} 套 · ${disabled.length} 套已停用`);
   }
+  function aboutSection(rulepack) {
+    const packName = rulepack?.manifest?.name ?? "";
+    const packVersion = rulepack?.manifest?.version ?? "";
+    return section("关于", `
+    <p>调查员助手 版本 <span class="mono">v${esc(APP_VERSION)}</span>${packVersion ? ` · ${esc(packName)} 规则 <span class="mono">v${esc(packVersion)}</span>` : ""}</p>
+    <p class="field-help">反馈问题时，把这一行连同截图一并提供即可。
+      版本号也显示在左上角标题下方 —— 在线版与下载版都看得到。</p>
+  `);
+  }
   function appearanceSection() {
     const marked = document.documentElement.dataset.theme;
     const active = THEMES.find((t) => t.id === marked) ?? THEMES[0];
@@ -18428,6 +18515,8 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${appearanceSection()}
 
       ${rulepacksSection(rulepack)}
+
+      ${aboutSection(rulepack)}
     `;
       const fileInput = container.querySelector("[data-file]");
       const onClick = async (event) => {
@@ -18886,6 +18975,14 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape") closeModal();
     });
+    const brandSub = document.getElementById("brand-sub");
+    if (brandSub) {
+      brandSub.textContent = "TRPG Toolkit ";
+      const versionTag = document.createElement("span");
+      versionTag.className = "brand-version";
+      versionTag.textContent = `v${APP_VERSION}`;
+      brandSub.append(versionTag);
+    }
     initTooltip();
     const printState = [];
     window.addEventListener("beforeprint", () => {
