@@ -210,6 +210,7 @@ button.save-chip.is-bad:hover { border-color: var(--danger); color: var(--danger
 /* —— 顶栏：当前角色 chip（「我在给谁记账」）—— */
 .char-chip {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--s2);
   max-width: 260px;
@@ -1964,8 +1965,34 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
 .info-bar-name { font-family: var(--font-serif); font-size: 20px; color: var(--text-1); margin-right: var(--s3); }
 .info-bar-facts { display: flex; gap: var(--s4); flex-wrap: wrap; }
 
-.sheet-grid { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: var(--s4); align-items: start; }
+.sheet-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: var(--s4); align-items: start; }
 .sheet-col { display: grid; gap: var(--s4); min-width: 0; }
+
+/* 资源依据所在操作栏的宽度排布，避免四列挤压恢复表单。 */
+.sheet-status { container: sheet-status / inline-size; }
+.sheet-resources { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s3); }
+.sheet-resources .stat-compact { min-width: 0; }
+.sheet-resources .res-nudge { gap: var(--s1); }
+.sheet-resources .res-nudge .btn { min-width: 44px; min-height: 44px; padding: var(--s1); }
+.sheet-resources .res-exact > summary { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 2px 4px; }
+.sheet-resources .res-exact[open] { grid-column: 1 / -1; grid-row: 2; }
+.sheet-resources .res-nudge > .btn:last-child { grid-column: 3; grid-row: 1; }
+.sheet-resources .res-exact .skill-input { min-height: 44px; }
+.sheet-resources .rest-row { flex-wrap: wrap; }
+.sheet-resources .rest-row > span { white-space: nowrap; }
+.sheet-resources .rest-row .skill-input.sm { flex: 0 0 56px; min-height: 44px; }
+.sheet-resources .rest-row .btn { flex: 0 0 100%; min-height: 44px; }
+.sheet-resources [data-check-target] { min-height: 44px; }
+@container sheet-status (min-width: 960px) {
+  .sheet-resources { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container sheet-status (max-width: 380px) {
+  .sheet-resources .stat-compact { padding: var(--s2); }
+  .sheet-resources .stat-label { font-size: 12px; }
+}
+@container sheet-status (max-width: 299px) {
+  .sheet-resources { grid-template-columns: minmax(0, 1fr); }
+}
 
 /* 一行的两半：属性表 | 战斗速览。战斗速览只占一半宽，格子落成两列 */
 .sheet-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--s4); align-items: start; }
@@ -2288,9 +2315,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
    * 窄屏把「状态／技能」那一列提到最前：首屏首先要能操作（HP／SAN／技能入口），
    * 人物资料、雷达、装备可以往后放。原先单列后沿用 DOM 顺序，于是首屏是姓名与雷达 ——
    * 打开角色卡第一眼看不到任何能操作的东西。
-   * 代价要说清：**视觉顺序与 DOM 顺序分叉**，键盘 Tab 顺序仍按 DOM。
+   * 主操作栏已放在 DOM 首位；显式保持默认顺序，键盘与视觉一致。
    */
-  .sheet-col[data-primary] { order: -1; }
+  .sheet-col[data-primary] { order: 0; }
   .sheet-pair { grid-template-columns: minmax(0, 1fr); }
   .radar { max-width: 260px; }
 }
@@ -2465,7 +2492,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   /* 强制保留双栏 —— 否则会命中 (max-width:1180px) 的响应式断点，
      A4 竖版宽度约 794px，正好落在那条断点以下，主卡会被压成一条长龙、页数翻倍。
      角色卡就是按这个密度设计的，纸上也必须保持两栏。 */
-  .sheet-grid { grid-template-columns: 280px minmax(0, 1fr) !important; }
+  .sheet-grid { grid-template-columns: minmax(0, 1fr) 280px !important; }
+  .sheet-status { container-type: normal; }
+  .sheet-resources { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .sheet-pair { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .skill-cols[data-cols="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .radar { max-width: 240px !important; }
@@ -9759,6 +9788,215 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (labelEl) labelEl.textContent = String(num(el2.value));
   }
 
+  // src/ui/sanityFlow.js
+  init_dom();
+  init_components();
+  function insanityLabel(character) {
+    const e = character?.extra ?? {};
+    if (e.permanentInsanity?.active) return "永久疯狂";
+    const labels = [];
+    if (e.indefiniteInsanity?.active) labels.push("不定期疯狂");
+    if (e.temporaryInsanity) labels.push("临时疯狂");
+    return labels.join(" · ") || (e.pendingIntCheck ? "待智力检定" : "");
+  }
+  function logState(character, label, detail, kind = "恢复") {
+    var _a;
+    character.extra ?? (character.extra = {});
+    (_a = character.extra).insanityLog ?? (_a.insanityLog = []);
+    character.extra.insanityLog.push({ kind, label, detail, day: num(character.extra.currentDay, 1), at: Date.now() });
+  }
+  function finishIndefiniteInsanity(character, reason) {
+    const state4 = character.extra?.indefiniteInsanity;
+    if (!state4?.active) return false;
+    state4.active = false;
+    state4.endedAt = Date.now();
+    state4.endReason = reason;
+    logState(character, "不定期疯狂结束", reason);
+    return true;
+  }
+  function finishTemporaryInsanity(character) {
+    const state4 = character.extra?.temporaryInsanity;
+    if (!state4) return false;
+    delete character.extra.temporaryInsanity;
+    logState(character, "临时疯狂结束", `持续约 ${num(state4.hours)} 小时`);
+    return true;
+  }
+  function resolvePendingIntCheck(rulepack, character, rng) {
+    if (!character.extra?.pendingIntCheck || character.extra?.permanentInsanity?.active) return null;
+    const value = num(character.characteristics?.INT);
+    if (value <= 0) return null;
+    const outcome = rulepack.sanity.resolveTempInsanity(value, rng);
+    if (outcome.insane) {
+      character.extra.temporaryInsanity = {
+        hours: outcome.hours,
+        at: Date.now(),
+        day: num(character.extra.currentDay, 1),
+        sourceLogId: character.extra.pendingIntCheck.sourceLogId
+      };
+    }
+    delete character.extra.pendingIntCheck;
+    logState(
+      character,
+      outcome.insane ? "陷入临时疯狂" : "未陷入临时疯狂",
+      `智力检定 ${num(outcome.roll)} / ${num(outcome.intValue)}${outcome.insane ? `，持续约 ${num(outcome.hours)} 小时` : ""}`,
+      "智力检定"
+    );
+    return outcome;
+  }
+  function undoInsanityEffects(character, entry) {
+    const e = character.extra ?? {};
+    let changed = false;
+    for (const key of ["indefiniteInsanity", "permanentInsanity"]) {
+      const state4 = e[key];
+      if (state4?.active && state4.sourceLogId === entry.id) {
+        state4.active = false;
+        state4.endedAt = Date.now();
+        state4.endReason = "撤销触发损失";
+        changed = true;
+      }
+    }
+    if (e.pendingIntCheck?.sourceLogId === entry.id) {
+      delete e.pendingIntCheck;
+      changed = true;
+    }
+    if (e.temporaryInsanity?.sourceLogId === entry.id) {
+      finishTemporaryInsanity(character);
+      changed = true;
+    }
+    if (changed) logState(character, "疯狂判定已撤销", "已撤销对应的理智损失记录", "撤销");
+  }
+  function sanityStatusHtml(character, { includeTemporary = true, includePending = true } = {}) {
+    const e = character.extra ?? {};
+    const block = (key, title, text, buttons = "") => `<div class="pending-block is-danger" data-insanity-state="${key}">
+    <div class="pending-head"><b>${title}</b></div><p class="field-help">${text}</p>${buttons ? `<div class="btn-row">${buttons}</div>` : ""}</div>`;
+    const button = (action, text) => `<button type="button" class="btn btn-sm" data-insanity-action="${action}">${text}</button>`;
+    const rows = [];
+    if (e.permanentInsanity?.active) {
+      rows.push(block("permanent", "永久疯狂", "理智已归零，后续由守秘人控制。常规治疗不可解除永久疯狂。"));
+    } else {
+      if (e.indefiniteInsanity?.active) rows.push(block(
+        "indefinite",
+        "不定期疯狂",
+        `第 ${num(e.indefiniteInsanity.day, 1)} 日触发。恢复途径：接受恢复治疗，或由守秘人在幕间确认恢复。`,
+        button("recovery", "恢复治疗") + button("chapter-end", "幕间恢复")
+      ));
+      if (includeTemporary && e.temporaryInsanity) rows.push(block(
+        "temporary",
+        "临时疯狂",
+        `持续约 ${num(e.temporaryInsanity.hours)} 小时。恢复途径：游戏内持续时间结束后，由守秘人确认并标记结束。`,
+        button("temporary-end", "标记结束")
+      ));
+      if (includePending && e.pendingIntCheck) rows.push(block(
+        "pending",
+        "待办：智力检定",
+        "临时疯狂尚待智力检定判定；检定成功才进入临时疯狂。",
+        button("int-open", "进行检定") + (!e.indefiniteInsanity?.active ? button("confirm-indefinite", "补记状态") : "")
+      ));
+    }
+    return rows.join("");
+  }
+  var activePrompt = null;
+  var promptBound = false;
+  function bindPrompt() {
+    if (promptBound) return;
+    const body = document.getElementById("modal-body");
+    if (!body) return;
+    promptBound = true;
+    onModalClosed(() => {
+      const closed = activePrompt;
+      activePrompt = null;
+      if (!closed) return;
+      queueMicrotask(() => {
+        if (getState().character === closed.character && getState().view === closed.view) closed.afterClose?.();
+      });
+    });
+    body.addEventListener("click", (event) => {
+      var _a;
+      const button = event.target.closest?.("[data-insanity-prompt-action]");
+      const ctx = activePrompt;
+      if (!button || !ctx) return;
+      if (getState().character !== ctx.character) {
+        closeModal();
+        return;
+      }
+      const action = button.dataset.insanityPromptAction;
+      if (action === "cancel") {
+        closeModal();
+        return;
+      }
+      if (action === "roll") {
+        const outcome = resolvePendingIntCheck(ctx.rulepack, ctx.character, createRng(newSeed()));
+        if (!outcome) {
+          toast("智力值未填写或该待办已处理。请核对角色资料。", "bad");
+          return;
+        }
+        saveCharacter(ctx.character);
+        closeModal();
+        toast(`智力检定 ${num(outcome.roll)} / ${num(outcome.intValue)}：${outcome.insane ? `临时疯狂，约 ${num(outcome.hours)} 小时` : "未陷入临时疯狂"}`, outcome.insane ? "bad" : void 0, 5600);
+        return;
+      }
+      if (action === "skip") {
+        delete ctx.character.extra.pendingIntCheck;
+        logState(ctx.character, "智力检定已跳过", "守秘人确认本次不检定", "裁定");
+      } else if (action === "chapter-end") {
+        finishIndefiniteInsanity(ctx.character, ctx.rulepack.recovery.autoRecoverOnDevelopmentPhase().detail);
+      } else if (action === "confirm-indefinite") {
+        (_a = ctx.character).extra ?? (_a.extra = {});
+        ctx.character.extra.indefiniteInsanity = { active: true, day: num(ctx.character.extra.currentDay, 1), at: Date.now(), source: "守秘人确认" };
+        logState(ctx.character, "不定期疯狂已确认", "补记活动状态，未重复扣除理智", "裁定");
+      } else return;
+      saveCharacter(ctx.character);
+      closeModal();
+    });
+  }
+  function showPrompt(rulepack, character, title, html, afterClose) {
+    bindPrompt();
+    activePrompt = { rulepack, character, afterClose, view: getState().view };
+    openModal(title, html);
+  }
+  function promptPendingIntCheck(rulepack, character, afterClose) {
+    if (!character.extra?.pendingIntCheck || character.extra?.permanentInsanity?.active) return false;
+    const value = num(character.characteristics?.INT);
+    showPrompt(rulepack, character, "待办：智力检定", `
+    <p>单次理智损失达到阈值，须进行智力检定。</p>
+    <p class="field-help">掷出等于或低于智力值，将陷入临时疯狂；未通过则不触发临时疯狂。</p>
+    ${character.extra.indefiniteInsanity?.active ? '<p class="field-help">不定期疯狂已成立，不因本次智力检定失败而解除。</p>' : ""}
+    <p class="mono mt-3">智力目标 ${value}</p>
+    ${value <= 0 ? '<p class="field-help">智力尚未填写。可暂后处理，并在角色资料中补充智力。</p>' : ""}
+    <div class="btn-row mt-4"><button type="button" class="btn btn-primary" data-insanity-prompt-action="roll" ${value <= 0 ? "disabled" : ""}>进行检定</button>
+    <button type="button" class="btn" data-insanity-prompt-action="cancel">暂后处理</button>
+    <button type="button" class="btn btn-ghost" data-insanity-prompt-action="skip">本局不检定</button></div>`, afterClose);
+    return true;
+  }
+  function handleInsanityAction(event, rulepack, character, { navigate: navigate2, refresh } = {}) {
+    const button = event.target.closest?.("[data-insanity-action]");
+    if (!button) return false;
+    const action = button.dataset.insanityAction;
+    if (action === "int-open") promptPendingIntCheck(rulepack, character, refresh);
+    else if (action === "temporary-end") {
+      if (finishTemporaryInsanity(character)) {
+        saveCharacter(character);
+        refresh?.();
+      }
+    } else if (action === "recovery") {
+      navigate2?.("sanity");
+      queueMicrotask(() => document.querySelector("[data-insanity-recovery]")?.scrollIntoView?.({ block: "center", behavior: "auto" }));
+    } else if (action === "chapter-end" || action === "confirm-indefinite") {
+      const chapter = action === "chapter-end";
+      showPrompt(
+        rulepack,
+        character,
+        chapter ? "幕间恢复" : "补记不定期疯狂",
+        `<p>${chapter ? "须由守秘人确认章节结束，并允许恢复。" : "须由守秘人确认此前已触发不定期疯狂。"}</p>
+      <p class="field-help">${chapter ? "此操作不增减理智。" : "仅补记状态，不重复扣除理智。"}</p>
+      <div class="btn-row mt-4"><button type="button" class="btn btn-primary" data-insanity-prompt-action="${action}">${chapter ? "确认恢复" : "确认状态"}</button>
+      <button type="button" class="btn" data-insanity-prompt-action="cancel" data-autofocus>取消</button></div>`,
+        refresh
+      );
+    }
+    return true;
+  }
+
   // src/ui/views/combat.js
   init_dom();
   init_components();
@@ -12277,9 +12515,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const items = [];
     if (character) {
       const tempInsane = character.extra?.temporaryInsanity;
-      if (tempInsane) {
+      const activeInsanity = insanityLabel(character);
+      if (activeInsanity) {
         items.push({
-          text: `<b>${esc(character.name || "当前调查员")}</b> 正处于临时疯狂（约 ${num(tempInsane.hours)} 小时）—— 演出中应体现恐惧症或躁狂症`,
+          text: `<b>${esc(character.name || "当前调查员")}</b> · ${esc(activeInsanity)}${tempInsane ? `（约 ${num(tempInsane.hours)} 小时）` : ""}。理智页提供待办与恢复入口。`,
           action: "go-sanity",
           actionLabel: "去理智页"
         });
@@ -12288,7 +12527,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       const sanPct = san?.max ? num(san.current) / num(san.max) * 100 : 100;
       if (sanPct <= 30) {
         items.push({
-          text: `<b>${esc(character.name || "当前调查员")}</b> 的理智只剩 ${num(san.current)}（上限 ${num(san.max)}）—— 离不定期疯狂不远了`,
+          text: `<b>${esc(character.name || "当前调查员")}</b> 理智较低：${num(san.current)}（上限 ${num(san.max)}）。应核对当前状态与待办。`,
           action: "go-sanity",
           actionLabel: "去处理"
         });
@@ -13251,8 +13490,16 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       sanBefore,
       sanAfter
     });
-    if (judgement.triggers.includes("temporary")) {
-      character.extra.pendingIntCheck = { day, at: Date.now() };
+    if (judgement.triggers.includes("permanent")) {
+      if (!character.extra.permanentInsanity?.active) {
+        character.extra.permanentInsanity = { active: true, day, at: Date.now(), source, sourceLogId: entry.id };
+      }
+      delete character.extra.pendingIntCheck;
+    } else if (judgement.triggers.includes("temporary")) {
+      character.extra.pendingIntCheck = { day, at: Date.now(), sourceLogId: entry.id };
+    }
+    if (judgement.triggers.includes("indefinite") && !character.extra.permanentInsanity?.active && character.extra.indefiniteInsanity?.active !== true) {
+      character.extra.indefiniteInsanity = { active: true, day, at: Date.now(), source, sourceLogId: entry.id };
     }
     return { sanBefore, sanAfter, applied: entry.applied, judgement };
   }
@@ -13664,7 +13911,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <div class="card card-tight" style="margin:0">
           <div class="row" style="justify-content:space-between;align-items:baseline">
             <span style="font-size:15px">${esc(opposed ? `我方 · ${label}` : label)}</span>
-            <span class="mono">${num(value)}%</span>
+            <span class="mono" data-check-value>${num(value)}%</span>
           </div>
 
           ${opposed ? `
@@ -14208,13 +14455,23 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     });
     entry.settled = true;
     entry.settleNote = `${lossExpr} → 损失 ${loss.total} 点，剩余 ${sanAfter}`;
+    panel.value = sanAfter;
     saveCharacter(character);
+    repaintDifficulty(rulepack);
+    const valueLabel = panelBody()?.querySelector("[data-check-value]");
+    if (valueLabel) valueLabel.textContent = `${sanAfter}%`;
     paintResult();
     refreshSideStats();
     toast(`理智已扣除 ${loss.total} 点（剩余 ${sanAfter}）`, "bad", 4200);
     if (judgement.notes.length) {
       toast(judgement.notes.join("；"), judgement.severity === "permanent" ? "bad" : "info", 5600);
     }
+    const owner = panel;
+    promptPendingIntCheck(rulepack, character, () => {
+      if (panel !== owner) return;
+      openModal("检定", drawerHtml(rulepack, character, panel));
+      paintResult();
+    });
   }
   function pushRulesHtml(push) {
     return `
@@ -15448,12 +15705,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   `;
   }
   function tempInsanityBanner(character) {
-    const t = character.extra?.temporaryInsanity;
-    if (!t) return "";
-    return notice(
-      `<span><b>临时疯狂</b> · 持续约 ${num(t.hours)} 小时 —— 演出中应体现恐惧症或躁狂症；到期后可在理智页标记结束。</span>`,
-      "danger"
-    );
+    return sanityStatusHtml(character);
   }
   function buildHtml5(rulepack, character) {
     const derived3 = computeDerived(rulepack, character);
@@ -15537,7 +15789,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </table>`;
     const chunks = shown.length >= 12 ? [shown.slice(0, Math.ceil(shown.length / 2)), shown.slice(Math.ceil(shown.length / 2))] : [shown];
     const skillCard = `
-    <div class="card card-tight">
+    <div class="card card-tight" data-skill-section tabindex="-1" role="region" aria-label="技能检定">
       <div class="card-title row" style="justify-content:space-between">
         <span>技能 <span class="dim tiny">常用 ${commonSkills.length} / 全部 ${allSkills.length}</span></span>
         <button type="button" class="btn btn-sm" data-action="toggle-skills">
@@ -15582,12 +15834,18 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${gearRegisterHtml(rulepack, character)}
     </div>
   `;
+    const wound = character.extra?.wound ?? {};
+    const woundUrgent = Boolean(wound.major || wound.dying || wound.pending || character.resources?.hp && Number(character.resources.hp.current) === 0);
+    const poisonUrgent = Boolean(character.extra?.poison?.last?.poisonId);
+    const woundCard = woundCardHtml(rulepack, character);
+    const poisonCard = poisonCardHtml(rulepack, character);
     return `
     ${infoBarHtml(rulepack, character)}
 
     ${!character.extra?.completed ? notice('这张卡尚未在向导中走完最后一步，可能尚不完整。<button type="button" class="btn btn-sm" data-action="go-wizard">继续完善</button>', "warn") : ""}
 
     <div class="btn-row mb-4">
+      <button type="button" class="btn btn-sm" data-action="jump-skills">定位技能</button>
       <button type="button" class="btn btn-sm" data-action="dicebot">导出骰娘文本</button>
       <button type="button" class="btn btn-sm" data-action="print">打印角色卡</button>
       <button type="button" class="btn btn-sm" data-action="go-wizard">去车卡向导补充</button>
@@ -15595,21 +15853,20 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>
 
     <div class="sheet-grid">
-      <div class="sheet-col">${radarCard}${weaponCard}${assetCard}</div>
-
       <div class="sheet-col" data-primary>
-        <div class="card card-tight">
+        <div class="card card-tight sheet-status">
           <div class="card-title row" style="justify-content:space-between">
             <span>状态</span>
             <span class="dim tiny">资源条可直接拖动</span>
           </div>
           ${tempInsanityBanner(character)}
-          <div class="grid-4">${resourceCards}</div>
+          <div class="sheet-resources">${resourceCards}</div>
         </div>
 
-        ${woundCardHtml(rulepack, character)}
+        ${woundUrgent ? woundCard : ""}
+        ${poisonUrgent ? poisonCard : ""}
 
-        ${poisonCardHtml(rulepack, character)}
+        ${skillCard}
 
         <div class="sheet-pair">
           ${attrCard}
@@ -15619,9 +15876,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           </div>
         </div>
 
-        ${habitSectionHtml(character)}
+        ${woundUrgent ? "" : woundCard}
+        ${poisonUrgent ? "" : poisonCard}
 
-        ${skillCard}
+        ${habitSectionHtml(character)}
 
         <details class="card card-tight screen-only" data-repair>
           <summary class="card-title">数值修复</summary>
@@ -15634,6 +15892,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           </div>
         </details>
       </div>
+      <div class="sheet-col" data-reference>${radarCard}${weaponCard}${assetCard}</div>
     </div>
   `;
   }
@@ -15734,9 +15993,16 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       const onClick = (event) => {
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
+        if (handleInsanityAction(event, rulepack, character, { navigate: navigate2, refresh: paint2 })) return;
         const wizardBtn = target.closest('[data-action="go-wizard"]');
         if (wizardBtn) {
           navigate2("wizard", wizardBtn.hasAttribute("data-fresh") ? { fresh: true } : void 0);
+          return;
+        }
+        if (target.closest('[data-action="jump-skills"]')) {
+          const section2 = container.querySelector("[data-skill-section]");
+          section2?.focus({ preventScroll: true });
+          section2?.scrollIntoView?.({ block: "start", behavior: "auto" });
           return;
         }
         if (target.closest("[data-habit-add], [data-habit-remove], [data-habit-record], [data-habit-phase]")) {
@@ -16076,8 +16342,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const res = character.resources?.[rulepack.sanityResourceId];
     if (!R || !res) return "";
     const mode = recoveryForm.mode === "institution" ? "institution" : "private";
+    const permanent = Boolean(character.extra?.permanentInsanity?.active);
     return `
-    <div class="recovery-block">
+    <div class="recovery-block" data-insanity-recovery>
       <div class="row" style="flex-wrap:wrap;align-items:flex-end">
         <label class="field" style="flex:1;min-width:140px;margin:0">
           <span class="field-label">护理方式</span>
@@ -16090,10 +16357,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <input type="number" data-recovery="psychoanalysis" value="${num(recoveryForm.psychoanalysis)}"
             min="0" max="99" aria-label="精神分析技能值">
         </label>
-        <button type="button" class="btn btn-primary" data-action="recovery-roll">掷一个月度治疗</button>
+        <button type="button" class="btn btn-primary" data-action="recovery-roll" ${permanent ? "disabled" : ""}>掷一个月度治疗</button>
       </div>
 
       <p class="field-help">${esc(R.MODES.find((m) => m.id === mode)?.hint ?? "")}</p>
+      ${permanent ? '<p class="field-help">永久疯狂不可通过本项月度治疗解除。</p>' : ""}
       <p class="field-help">成功线：<b>${esc(R.modeThresholdText(mode))}</b>
         填了精神分析技能就用它代替掷 1D100（有医生在场时）。</p>
 
@@ -16172,7 +16440,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const hours = num(state4.hours, 0);
     const day = num(state4.day, 0);
     return `
-    <div class="pending-block is-danger">
+    <div class="pending-block is-danger" data-insanity-state="temporary">
       <div class="pending-head">
         <span class="pending-badge">临时疯狂</span>
         <b>持续约 ${hours} 小时</b>
@@ -16198,7 +16466,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const ratioLeft = Math.max(0, ratioThreshold - dayLoss);
     const logs = (character.log ?? []).filter((e) => e.resourceId === sanId).slice().reverse().slice(0, 20);
     const insanityLog = (character.extra?.insanityLog ?? []).slice().reverse().slice(0, 10);
-    const tempInsanity = character.extra?.temporaryInsanity;
+    const tempInsanity = character.extra?.permanentInsanity?.active ? null : character.extra?.temporaryInsanity;
     return `
     ${viewHead("理智追踪", "单次损失 5 点及以上需要做智力检定；一个游戏日内累计损失达到当前理智的 ⅕ 会陷入不定期疯狂。")}
 
@@ -16207,6 +16475,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     ${pendingIntCheckBlockHtml(rulepack, character)}
 
     ${tempInsanity ? tempInsanityBlockHtml(tempInsanity) : ""}
+    ${sanityStatusHtml(character, { includeTemporary: false, includePending: false })}
 
     <div class="grid-2 mb-4">
       <div class="stat" style="text-align:left">
@@ -16351,11 +16620,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         var _a, _b, _c;
         const target = event.target;
         if (!(target instanceof HTMLElement)) return;
+        if (handleInsanityAction(event, rulepack, character, { navigate: navigate2, refresh: paint2 })) return;
         if (target.closest('[data-action="go-wizard"]')) {
           navigate2("wizard");
           return;
         }
         if (target.closest('[data-action="recovery-roll"]')) {
+          if (character.extra?.permanentInsanity?.active) return;
           const R = rulepack.recovery;
           const res = character.resources?.[rulepack.sanityResourceId];
           if (!R || !res) return;
@@ -16379,6 +16650,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
               source: `恢复治疗（${outcome.modeLabel}）`,
               note: settled.cured ? "摆脱不定性疯狂" : ""
             });
+          }
+          if (settled.cured && !character.extra?.permanentInsanity?.active) {
+            finishIndefiniteInsanity(character, "恢复治疗后理智检定通过");
           }
           lastRecoveryHtml = recoveryResultHtml(rulepack, outcome, settled);
           lastResultHtml = "";
@@ -16404,6 +16678,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         if (delLog) {
           const removed = removeLogEntry(character, delLog.dataset.delLog);
           if (removed) {
+            undoInsanityEffects(character, removed);
             saveCharacter(character);
             paint2();
             toast(`已撤销：${removed.source || "该笔记录"} ${removed.applied > 0 ? "+" : ""}${num(removed.applied)}`);
@@ -16566,6 +16841,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             </div>` : ""}
         `;
           container.innerHTML = buildHtml6(rulepack, character);
+          promptPendingIntCheck(rulepack, character, paint2);
           return;
         }
         if (action === "san-direct") {
@@ -16615,6 +16891,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           lossDraftTouched = true;
           lossDraft = { day: f.day, spec: "0/1D6", source: "" };
           container.innerHTML = buildHtml6(rulepack, character);
+          promptPendingIntCheck(rulepack, character, paint2);
           return;
         }
         if (action === "int-check-skip") {
@@ -16626,6 +16903,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           return;
         }
         if (action === "int-check") {
+          if (document.querySelector("#modal-body [data-insanity-prompt-action]")) closeModal();
           if (!character.extra?.pendingIntCheck) {
             toast("该待办已处理完成；再次发生 5 点及以上的单次损失时才会重新出现", "bad", 4200);
             return;
@@ -17519,7 +17797,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.4";
+  var APP_VERSION = "0.1.6";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
@@ -18309,11 +18587,11 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
     const hp = ch.resources?.hp ?? {};
     const san = ch.resources?.san ?? {};
     const name = String(ch.name || "").trim() || "未命名调查员";
-    const tempInsane = Boolean(ch.extra?.temporaryInsanity);
+    const stateLabel = insanityLabel(ch);
     host.innerHTML = `<button type="button" class="char-chip" data-topbar-character
-    title="当前调查员：${esc(name)}${tempInsane ? "（临时疯狂中）" : ""}（点击回到角色卡）">
+    title="当前调查员：${esc(name)}${stateLabel ? `（${esc(stateLabel)}）` : ""}（点击回到角色卡）">
       <span class="char-chip-name">${esc(name)}</span>
-      ${tempInsane ? '<span class="char-chip-flag">临时疯狂</span>' : ""}
+      ${stateLabel ? `<span class="char-chip-flag">${esc(stateLabel)}</span>` : ""}
       <span class="char-chip-stats mono">HP ${num(hp.current)}/${num(hp.max)} · SAN ${num(san.current)}/${num(san.max)}</span>
     </button>`;
   }
