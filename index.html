@@ -62,6 +62,10 @@
 
   --lh-tight: 1.3;
   --lh-body: 1.6;
+  --motion-fast: 120ms;
+  --motion-state: 160ms;
+  --motion-value: 240ms;
+  --motion-ease: ease;
 }
 
 /* ============================================================
@@ -285,7 +289,7 @@ button.save-chip.is-bad:hover { border-color: var(--danger); color: var(--danger
   font-size: 14px;
   text-align: left;
   cursor: pointer;
-  transition: background-color .15s ease, color .15s ease;
+  transition: background-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .nav-item:hover { background: var(--bg-raised); color: var(--text-1); }
 .nav-item[aria-current="page"] {
@@ -302,7 +306,7 @@ button.save-chip.is-bad:hover { border-color: var(--danger); color: var(--danger
   display: grid;
   place-items: center;
   color: var(--text-3);
-  transition: color .15s ease;
+  transition: color var(--motion-state) var(--motion-ease);
 }
 .nav-item:hover .nav-icon { color: var(--text-2); }
 .nav-item[aria-current="page"] .nav-icon { color: var(--accent); }
@@ -370,6 +374,31 @@ button.save-chip.is-bad:hover { border-color: var(--danger); color: var(--danger
 }
 .card + .card { margin-top: var(--s4); }
 
+/* 主要操作、数据与参考共用主题，使用边界和间距表达主次。 */
+.card-task { border-color: var(--line-3); }
+.card-task > .card-title { color: var(--text-1); font-size: 16px; }
+.card-data { border-color: var(--line-2); }
+.card-reference {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0;
+  padding: var(--s4) 0;
+}
+.form-group {
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  padding: var(--s4) 0 0;
+}
+.sheet-col[data-reference] > .card {
+  background: transparent;
+  border: 0;
+  border-top: 1px solid var(--line-2);
+  border-radius: 0;
+  padding-inline: 0;
+}
+.sheet-col > .card + .card { margin-top: 0; }
+
 .card-title {
   font-size: 13px;
   color: var(--text-2);
@@ -417,13 +446,17 @@ input[type="text"], input[type="number"], select, textarea {
   font-family: inherit;
   font-size: 13px;
   line-height: 1.5;
-  transition: border-color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease);
 }
 input[type="number"] { font-family: var(--font-mono); }
 input:hover, select:hover, textarea:hover { border-color: var(--line-3); }
 input:focus, select:focus, textarea:focus {
   border-color: var(--accent-line);
   outline: none;
+}
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 input[aria-invalid="true"], select[aria-invalid="true"] {
   border-color: var(--danger-line);
@@ -467,7 +500,7 @@ input[type="checkbox"] { accent-color: var(--accent); width: 15px; height: 15px;
   font-family: inherit;
   font-size: 13px;
   cursor: pointer;
-  transition: background-color .15s ease, border-color .15s ease;
+  transition: background-color var(--motion-state) var(--motion-ease), border-color var(--motion-state) var(--motion-ease);
 }
 .btn:hover { background: var(--bg-overlay); border-color: var(--line-3); }
 .btn:disabled { opacity: .4; cursor: not-allowed; }
@@ -719,7 +752,7 @@ td.mid, th.mid { text-align: center; }
   border-radius: 50%;
   background: var(--text-2);
   border: 1px solid var(--line-3);
-  transition: background .15s ease, border-color .15s ease;
+  transition: background var(--motion-state) var(--motion-ease), border-color var(--motion-state) var(--motion-ease);
 }
 .stat-range:hover::-webkit-slider-thumb { background: var(--accent); border-color: var(--accent-line); }
 .stat-range:active::-webkit-slider-thumb { background: var(--accent-hi); }
@@ -768,7 +801,7 @@ td.mid, th.mid { text-align: center; }
   color: var(--text-3);
   font-size: 12px;
   cursor: pointer;
-  transition: border-color .15s ease, color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .step-chip:hover { border-color: var(--line-3); color: var(--text-2); }
 .step-chip .step-num {
@@ -859,7 +892,7 @@ td.mid, th.mid { text-align: center; }
 .san-bar-fill {
   height: 100%;
   background: var(--accent);
-  transition: width .3s ease;
+  transition: width var(--motion-value) var(--motion-ease);
 }
 .san-bar-fill[data-threat="ok"] { background: var(--accent); }
 .san-bar-fill[data-threat="neutral"] { background: var(--info); }
@@ -988,7 +1021,7 @@ details.card > summary::before {
   border-left: 5px solid currentColor;
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  transition: transform .15s ease;
+  transition: transform var(--motion-state) var(--motion-ease);
   flex: none;
 }
 details.card[open] > summary::before { transform: rotate(90deg); }
@@ -1019,7 +1052,7 @@ details.card > summary:hover { color: var(--text-1); }
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color .15s ease, color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .loss-chip:hover { border-color: var(--accent-line); color: var(--text-1); }
 .loss-format {
@@ -1046,7 +1079,7 @@ details.card > summary:hover { color: var(--text-1); }
   color: var(--text-2);
   pointer-events: none;
   opacity: 0;
-  transition: opacity .12s ease;
+  transition: opacity var(--motion-fast) var(--motion-ease);
 }
 .tip.is-visible { opacity: 1; }
 .tip-title {
@@ -1653,7 +1686,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color .15s ease, color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .filter-chip:hover { border-color: var(--line-3); color: var(--text-2); }
 .filter-chip[aria-pressed="true"] {
@@ -1678,7 +1711,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
   font-family: inherit;
   font-size: 12px;
   cursor: pointer;
-  transition: border-color .15s ease, color .15s ease, opacity .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease), opacity var(--motion-state) var(--motion-ease);
 }
 .order-chip:hover { border-color: var(--line-3); color: var(--text-1); }
 .order-chip[data-state="current"] {
@@ -1723,6 +1756,25 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
 }
 .combatant-stats .skill-input { width: 56px; }
 
+.combat-turnbar { min-width: 0; }
+.combat-turnbar .row > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.combat-current-hp { display: block; color: var(--text-2); font-size: 13px; margin-top: var(--s1); }
+.combat-turnbar .order-strip { flex-wrap: nowrap; overflow-x: auto; padding: var(--s1); }
+.combat-turnbar .order-chip { flex: 0 0 auto; min-height: 44px; max-width: 300px; overflow-wrap: anywhere; }
+.combat-turnbar .order-chip[data-state="done"] { opacity: 1; }
+.combat-roster-tools { margin-bottom: var(--s5); }
+.combat-roster-tools > summary { min-height: 44px; margin-bottom: 0; }
+.combat-roster-tools > summary .hint { margin-left: auto; font-size: 12px; font-family: var(--font-sans); }
+.combat-roster-tools[open] > summary { margin-bottom: var(--s4); }
+.combat-roster-tools .card { background: transparent; border: 0; padding: 0; }
+[data-combat-turnbar] .btn, [data-combat-turnbar] .btn:not(.btn-sm),
+[data-combat-attack] .btn, [data-combat-attack] .btn:not(.btn-sm),
+.combat-roster-tools .btn, .combat-roster-tools input:not([type="range"]),
+[data-attack-panel] select, [data-attack-panel] input:not([type="checkbox"]) { min-height: 44px; }
+[data-attack-panel] .seg, [data-attack-panel] .filter-chip { min-height: 44px; }
+[data-combat-attack] { scroll-margin-top: var(--s4); }
+[data-combat-result] { scroll-margin-block: var(--s4); }
+
 .rule-list {
   margin: 0;
   padding-left: 1.15em;
@@ -1749,7 +1801,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
   background: var(--bg-surface);
   border: 1px solid var(--line-1);
   border-radius: var(--r3);
-  transition: border-color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease);
   cursor: pointer;
 }
 .char-card:hover { border-color: var(--line-2); }
@@ -1761,7 +1813,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
 .char-card-head { display: flex; flex-direction: column; gap: 2px; }
 /* 卡片可点即打开 —— 用一个 › 把这件事说出来，而不是再塞一个按钮 */
 .char-card-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
-.char-card-go { color: var(--text-3); font-size: 18px; line-height: 1; transition: color .15s ease; }
+.char-card-go { color: var(--text-3); font-size: 18px; line-height: 1; transition: color var(--motion-state) var(--motion-ease); }
 .char-card:hover .char-card-go { color: var(--accent-hi); }
 .char-card-name {
   font-size: 15px;
@@ -1837,7 +1889,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
   color: var(--text-2);
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .15s ease, color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .mini-card:hover { border-color: var(--accent-line); color: var(--text-1); }
 .mini-card.is-current { border-color: var(--accent); background: var(--accent-bg); }
@@ -1880,7 +1932,7 @@ tbody tr.is-credit:hover { background: rgba(200, 90, 90, .11); }
   color: var(--text-2);
   font-family: inherit;
   cursor: pointer;
-  transition: border-color .15s ease, background-color .15s ease, color .15s ease;
+  transition: border-color var(--motion-state) var(--motion-ease), background-color var(--motion-state) var(--motion-ease), color var(--motion-state) var(--motion-ease);
 }
 .quick-card:hover:not(:disabled) {
   border-color: var(--accent-line);
@@ -2018,7 +2070,7 @@ details.card-tight > summary::before {
   border-left: 5px solid var(--text-3);
   border-top: 4px solid transparent;
   border-bottom: 4px solid transparent;
-  transition: transform .15s ease;
+  transition: transform var(--motion-state) var(--motion-ease);
 }
 details.card-tight[open] > summary::before { transform: rotate(90deg); }
 details.card-tight > summary:hover { color: var(--accent-hi); }
@@ -2133,7 +2185,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   font-size: 11px; color: var(--accent-hi);
   /* 原先 .45 的透明度把「这一行可以检定」压到约 2.9:1 —— 它是**信息**不是装饰。
      弱化改由字号与位置承担，透明度只留一点点层次。 */
-  opacity: .82; transition: opacity .12s ease;
+  opacity: .82; transition: opacity var(--motion-fast) var(--motion-ease);
   margin-left: var(--s2);
 }
 
@@ -10333,29 +10385,36 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   function turnBarHtml() {
     const cur = currentCombatant();
     return `
-    <div class="card mb-4">
+    <div class="card card-data combat-turnbar mb-4" data-combat-turnbar tabindex="-1" role="region" aria-label="当前行动与先手序列">
       <div class="row" style="justify-content:space-between">
         <div>
           <span class="dim tiny">第</span>
           <span class="mono" style="font-size:20px;color:var(--brass)"> ${num(state2.round)} </span>
           <span class="dim tiny">轮</span>
           ${cur ? `<span class="dim"> · 当前行动：</span><b>${esc(cur.name)}</b>
-            <span class="dim tiny">（敏捷 ${num(cur.dex)}）</span>` : '<span class="dim"> · 尚未添加参战者</span>'}
+            <span class="dim tiny">（敏捷 ${num(cur.dex)}）</span>
+            <span class="combat-current-hp mono">生命 ${num(cur.hp.current)} / ${num(cur.hp.max)}</span>` : '<span class="dim"> · 尚未添加参战者</span>'}
         </div>
         <div class="btn-row">
           <button type="button" class="btn" data-action="prev-turn" ${state2.combatants.length ? "" : "disabled"}>← 上一位</button>
           <button type="button" class="btn btn-primary" data-action="next-turn" ${state2.combatants.length ? "" : "disabled"}>下一位 →</button>
           <button type="button" class="btn btn-ghost" data-action="reset-round">重置</button>
+          ${cur ? '<button type="button" class="btn btn-ghost" data-action="jump-attack">定位结算</button>' : ""}
         </div>
       </div>
       ${state2.combatants.length ? `
         <div class="order-strip mt-4">
           ${state2.combatants.map((c, i) => `
             <button type="button" class="order-chip" data-turn="${i}"
+              aria-current="${i === state2.turnIndex ? "true" : "false"}"
               data-state="${i === state2.turnIndex ? "current" : i < state2.turnIndex ? "done" : "todo"}"
               ${tipAttrs({ title: c.name, body: `敏捷 ${num(c.dex)} · 生命 ${num(c.hp.current)}/${num(c.hp.max)}${c.note ? ` · ${c.note}` : ""}` })}>
               <span class="order-dex">${num(c.dex)}</span>
               <span>${esc(c.name)}</span>
+              <span class="mono">${num(c.hp.current)} / ${num(c.hp.max)}</span>
+              ${i === state2.turnIndex ? "<span>行动中</span>" : i < state2.turnIndex ? "<span>已行动</span>" : ""}
+              ${num(c.hp.current) <= 0 ? '<span class="lv-fail">倒地</span>' : ""}
+              ${cardMissing(c) ? '<span class="lv-warn">角色卡已删除</span>' : ""}
             </button>
           `).join("")}
         </div>` : ""}
@@ -10404,7 +10463,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const available = archive.filter((a) => !inCombat.has(a.id));
     const options = available.length ? available.map((a) => `<option value="${esc(a.id)}">${esc(a.name)}${a.occupation ? ` · ${esc(a.occupation)}` : ""}</option>`).join("") : `<option value="">${archive.length ? "— 角色库中的角色均已参战 —" : "— 角色库中尚无角色卡 —"}</option>`;
     return `
-    <div class="card" style="margin:0">
+    <div class="card card-data" style="margin:0">
       <div class="card-title">添加参战者</div>
       <p class="field-help" style="margin-top:0">结算需要先建立参战名单。调查员应从「角色库」引入，以读取其技能、武器与护甲；杂兵可直接临时添加。</p>
 
@@ -10532,7 +10591,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (needSkillOverride && !skillReady) missing.push("本次技能值");
     const resolveHint = list.length === 0 ? "先添加参战者" : missing.length ? `还差：${missing.join("、")}` : needSkillOverride ? "命中技能值取上方填写的数值" : "技能值会自动从角色卡读取";
     const hitLocationHtml = `
-    <div class="card" style="margin-bottom:var(--s4);background:var(--bg-raised)">
+    <div class="form-group" style="margin-bottom:var(--s4)">
       <label class="checkbox-row">
         <input type="checkbox" data-attack="hitLocations" ${form.hitLocations ? "checked" : ""}>
         <span>启用命中部位（可选规则）—— 命中时掷 1D20 查表，命中哪个部位一目了然</span>
@@ -10561,7 +10620,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>
   `;
     return `
-    <div class="card">
+    <div class="card card-task" data-attack-panel>
       ${list.length ? "" : notice("结算是逐名参战者依次进行的，因此需要先建立参战名单。上方「添加参战者」可从角色库引入调查员，也可临时添加一名杂兵。", "warn")}
 
       <div class="grid-2">
@@ -10639,7 +10698,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
       ${hitLocationHtml}
 
-      <div class="card" style="margin-bottom:var(--s4);background:var(--bg-raised)">
+      <div class="form-group" style="margin-bottom:var(--s4)">
         <label class="checkbox-row">
           <input type="checkbox" data-attack="manual" ${form.manual ? "checked" : ""}>
           <span>手动录入骰点 —— KP 或 PL 在桌上真实掷骰后，把<b>攻方</b>与<b>守方</b>的点数填进来；命中判定与伤害仍由本工具算</span>
@@ -10655,7 +10714,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
               <input type="number" data-attack="defRoll" value="${esc(form.defRoll)}" min="1" max="100" placeholder="1–100">
             </label>
           </div>
-        ` : '<p class="field-help" style="margin:var(--s2) 0 0">不勾选时，本工具直接掷骰并给出结论。想保留桌面掷骰的手感就勾上。</p>'}
+        ` : '<p class="field-help" style="margin:var(--s2) 0 0">未启用时由本工具掷骰；启用后可录入实体骰的点数。</p>'}
       </div>
 
       <div class="btn-row">
@@ -10718,7 +10777,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       </span>`;
     };
     return `
-    <div class="roll-card ${tone}" style="margin-top:var(--s4)">
+    <div class="roll-card ${tone}" style="margin-top:var(--s4)" data-combat-result tabindex="-1" role="region" aria-label="最近攻击结算">
       <div class="roll-head">
         <div class="roll-title">${esc(r.attackerName)} → ${esc(r.defenderName || "—")} · ${esc(r.weaponLabel)}</div>
         <div class="roll-verdict ${r.hit ? "lv-fail" : r.malfunction ? "lv-regular" : "lv-extreme"}">${esc(r.verdict)}</div>
@@ -10755,6 +10814,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${r.notes?.length ? r.notes.map((n) => `<div class="roll-note dim">${esc(n)}</div>`).join("") : ""}
       ${woundFollowUpHtml(r)}
       <div class="roll-note mono">种子 ${esc(r.seed)}</div>
+      <div class="btn-row mt-3">
+        <button type="button" class="btn" data-action="next-turn">下一位 →</button>
+        <button type="button" class="btn btn-ghost" data-action="jump-attack">定位结算</button>
+        <button type="button" class="btn btn-ghost" data-action="jump-turn">定位行动栏</button>
+      </div>
     </div>
   `;
   }
@@ -10809,7 +10873,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return `
     <div class="grid-2">
       ${ACTION_REFERENCE.map((block) => `
-        <div class="card" style="margin:0">
+        <div class="card card-reference" style="margin:0">
           <div class="card-title">${esc(block.title)}</div>
           <ul class="rule-list">
             ${block.items.map((t) => `<li>${esc(t)}</li>`).join("")}
@@ -10819,24 +10883,30 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </div>
   `;
   }
-  function buildHtml(rulepack) {
+  function buildHtml(rulepack, rosterExpanded) {
     const list = state2.combatants;
     return `
-    ${viewHead("战斗轮", "按敏捷排序的回合管理、参战者状态追踪，以及把攻击链路接管下来的结算面板。")}
+    ${viewHead("战斗轮", "先手与回合管理、参战者状态追踪及攻击结算。")}
 
     ${turnBarHtml()}
 
-    ${section(`参战者（${list.length}）`, `
+    ${isResidue() ? `<div class="notice notice-warn mb-4" data-combat-residue>保留上次战斗局面：${list.length} 名参战者 · 第 ${num(state2.round, 1)} 轮。可继续使用，或展开「管理名单」清空战斗。</div>` : ""}
+    <details class="card card-data combat-roster-tools" data-roster-tools ${!list.length || rosterExpanded ? "open" : ""}>
+      <summary class="card-title">${list.length ? `管理名单（${list.length}）` : "添加参战者"}<span class="hint">生命与理智调整 · 添加与移除 · 先手设置</span></summary>
       <div class="grid-2">
         <div>
-          ${list.length ? `<div class="stack">${list.map((c, i) => combatantRowHtml(c, i)).join("")}</div>` : notice("参战名单为空。可通过右上方的「添加参战者」从角色库引入调查员，或临时添加一名杂兵 —— 攻击结算需要先确定目标。", "info")}
+          ${list.length ? `<div class="stack">${list.map((c, i) => combatantRowHtml(c, i)).join("")}</div>` : notice("参战名单为空。请从角色库引入调查员，或临时添加参战者，再进行攻击结算。", "info")}
         </div>
         <div>${addPanelHtml()}</div>
-      </div>`, "按敏捷从高到低排序 · 需先建立参战名单")}
+      </div>
+    </details>
 
-    ${section("攻击结算", attackPanelHtml(rulepack) + attackResultHtml(), "选择双方与武器，剩下的交给它")}
+    <section class="section" data-combat-attack tabindex="-1" role="region" aria-label="攻击结算">
+      <div class="section-head"><h3>攻击结算</h3><span class="hint">选择双方、武器与结算参数</span></div>
+      ${attackPanelHtml(rulepack) + attackResultHtml()}
+    </section>
 
-    ${section("战斗动作速查", referenceHtml(), "最容易在桌上吵起来的几条")}
+    ${section("战斗动作速查", referenceHtml(), "先手、应对、伤害与火器规则")}
   `;
   }
   async function syncHpToCharacter(combatant) {
@@ -10929,8 +10999,16 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       };
       const findBy = (id) => state2.combatants.find((c) => c.id === id) ?? null;
       let disposed = false;
+      let rosterExpanded = false;
       const paint2 = () => {
         if (disposed) return;
+        const oldTools = container.querySelector("[data-roster-tools]");
+        if (oldTools) rosterExpanded = oldTools.open;
+        const focused = container.contains(document.activeElement) ? document.activeElement : null;
+        const focusAttr = ["data-action", "data-attack", "data-turn", "data-band", "data-defense-pick", "data-hp-set", "data-san-set"].find((attr) => focused?.hasAttribute(attr));
+        const focusValue = focusAttr ? focused.getAttribute(focusAttr) : null;
+        const resultFocus = Boolean(focused?.closest("[data-combat-result]"));
+        const orderScroll = container.querySelector(".order-strip")?.scrollLeft ?? 0;
         const form = state2.attack;
         if (!form.attackerId || !findBy(form.attackerId)) {
           form.attackerId = currentCombatant()?.id ?? "";
@@ -10941,7 +11019,22 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         if (!armorPool(rulepack, cachedCharacter(findBy(form.defenderId))).some((a) => a.id === form.armorId)) {
           form.armorId = "none";
         }
-        container.innerHTML = buildHtml(rulepack);
+        container.innerHTML = buildHtml(rulepack, rosterExpanded);
+        const strip = container.querySelector(".order-strip");
+        const currentChip = strip?.querySelector('[data-state="current"]');
+        if (strip && currentChip) {
+          strip.scrollLeft = orderScroll;
+          const bounds = strip.getBoundingClientRect();
+          const chipBounds = currentChip.getBoundingClientRect();
+          if (chipBounds.left < bounds.left) strip.scrollLeft += chipBounds.left - bounds.left;
+          else if (chipBounds.right > bounds.right) strip.scrollLeft += chipBounds.right - bounds.right;
+        }
+        if (focusAttr) {
+          const scope = resultFocus ? container.querySelector("[data-combat-result]") : container;
+          [...scope?.querySelectorAll(`[${focusAttr}]`) ?? []].find((el2) => el2.getAttribute(focusAttr) === focusValue)?.focus({ preventScroll: true });
+        } else if (focused?.tagName === "SUMMARY" && oldTools?.contains(focused)) {
+          container.querySelector("[data-roster-tools] > summary")?.focus({ preventScroll: true });
+        }
       };
       const runAttack = async () => {
         const form = state2.attack;
@@ -11064,6 +11157,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         };
         save();
         paint2();
+        const resultCard2 = container.querySelector("[data-combat-result]");
+        resultCard2?.scrollIntoView?.({ block: "nearest" });
+        resultCard2?.focus({ preventScroll: true });
       };
       const onClick = async (event) => {
         const target = event.target;
@@ -11164,6 +11260,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         const btn = target.closest("[data-action]");
         if (!btn) return;
         const action = btn.dataset.action;
+        if (action === "jump-attack" || action === "jump-turn") {
+          const selector = action === "jump-attack" ? "[data-combat-attack]" : "[data-combat-turnbar]";
+          const region = container.querySelector(selector);
+          region?.scrollIntoView?.({ block: "start" });
+          region?.focus({ preventScroll: true });
+          return;
+        }
         if (action === "resolve-attack") {
           await runAttack();
           return;
@@ -12411,7 +12514,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return Boolean(backend.getPrefSync("guideSeen", false));
   }
   var GUIDE_STEPS = [
-    { label: "建一张调查员卡", desc: "车卡向导会按规则书流程走五步 —— 属性、技能点、背景都有校验，不会算错。", action: "go-wizard", actionLabel: "去车卡", fresh: true },
+    { label: "建一张调查员卡", desc: "车卡向导按五步完成创建，提供属性、技能点与背景的填写校验。", action: "go-wizard", actionLabel: "去车卡", fresh: true },
     { label: "掷一次检定", desc: "在角色卡上点击属性、技能或理智即可检定，结果会带上骰值明细与随机种子。", action: "go-sheet", actionLabel: "去角色卡" },
     { label: "记一笔理智损失", desc: "填入损失格式（如 0/1D6），它会自动判定是否触发临时疯狂与不定期疯狂。", action: "go-sanity", actionLabel: "去理智" },
     { label: "跑团结束后结算成长", desc: "成功用过的技能会自动打上标记，到「日志 › 技能成长」一键结算。", action: "go-log", actionLabel: "去日志" },
@@ -12566,7 +12669,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   function guideHtml() {
     const open = guideOpen === null ? !readGuideSeen() : guideOpen;
     return `
-    <details class="card" ${open ? "open" : ""} data-guide>
+    <details class="card card-reference" ${open ? "open" : ""} data-guide>
       <summary>上手五步 —— 这套工具的功能概览</summary>
       <div class="mt-4">
         <div class="stack">
@@ -15789,7 +15892,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     </table>`;
     const chunks = shown.length >= 12 ? [shown.slice(0, Math.ceil(shown.length / 2)), shown.slice(Math.ceil(shown.length / 2))] : [shown];
     const skillCard = `
-    <div class="card card-tight" data-skill-section tabindex="-1" role="region" aria-label="技能检定">
+    <div class="card card-tight card-task" data-skill-section tabindex="-1" role="region" aria-label="技能检定">
       <div class="card-title row" style="justify-content:space-between">
         <span>技能 <span class="dim tiny">常用 ${commonSkills.length} / 全部 ${allSkills.length}</span></span>
         <button type="button" class="btn btn-sm" data-action="toggle-skills">
@@ -15870,7 +15973,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
         <div class="sheet-pair">
           ${attrCard}
-          <div class="card card-tight">
+          <div class="card card-tight card-data">
             <div class="card-title">战斗速览</div>
             ${combatStripHtml(rulepack, character, derived3)}
           </div>
@@ -16488,7 +16591,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         </div>
       </div>
 
-      <div class="card" style="margin:0">
+      <div class="card card-task" style="margin:0">
         <div class="card-title">记录一次理智损失</div>
         <div class="grid-2">
           <label class="field">
@@ -17797,7 +17900,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.6";
+  var APP_VERSION = "0.1.8";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
@@ -17820,11 +17923,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return firstNumberMapProblem(numeric, label);
   }
   var BACKUP_TOOL_ID = "investigator-toolkit";
-  var PREF_WHITELIST = ["customPhobias", "customManias", "bgEntryTables", "combat", "chase"];
-  var PREF_PREFIX_WHITELIST = ["houseRules:"];
+  var BACKUP_PREF_KEYS = ["customPhobias", "customManias", "bgEntryTables", "combat", "chase"];
+  var BACKUP_PREF_PREFIXES = ["houseRules:"];
   function isBackupPref(key) {
-    if (PREF_WHITELIST.includes(key)) return true;
-    return PREF_PREFIX_WHITELIST.some((p) => key.startsWith(p));
+    if (BACKUP_PREF_KEYS.includes(key)) return true;
+    return BACKUP_PREF_PREFIXES.some((p) => key.startsWith(p));
+  }
+  function backupPrefKeys(rulepackIds = []) {
+    const keys = [...BACKUP_PREF_KEYS, ...rulepackIds.map((id) => `houseRules:${id}`)];
+    return [...new Set(keys)].filter((k) => isBackupPref(k));
   }
   function buildBackup({ characters = [], prefs = {}, appVersion = APP_VERSION } = {}) {
     const kept = {};
@@ -18342,14 +18449,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             if (data) characters.push(data);
           }
           const prefs = {};
-          const prefKeys = [
-            "customPhobias",
-            "customManias",
-            "combat",
-            "chase",
-            // 村规按规则包分开存，键名要把每套规则包都覆盖到
-            ...listRulepacks().map((p) => `houseRules:${p.id}`)
-          ];
+          const prefKeys = backupPrefKeys(listRulepacks().map((p) => p.id));
           for (const key of prefKeys) {
             const value = await getPref(key, null);
             if (value !== void 0 && value !== null) prefs[key] = value;
