@@ -3038,7 +3038,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     id: "coc7",
     name: "克苏鲁的呼唤 第七版",
     shortName: "COC 7e",
-    version: "0.1.0",
+    version: "0.1.1",
     status: "stable",
     license: "Chaosium Fan Material Policy（非商业、非零售、非官方）",
     attribution: "This website uses trademarks and/or copyrights owned by Chaosium Inc/Moon Design Publications LLC, which are used under Chaosium Inc's Fan Material Policy. We are expressly prohibited from charging you to use or access this content. This website is not published, endorsed, or specifically approved by Chaosium Inc. For more information about Chaosium Inc's products, please visit www.chaosium.com.",
@@ -3344,9 +3344,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   }
 
   // src/rulepacks/coc7/check.js
-  function combine(tens, ones, hasBonus) {
+  function combine(tens, ones) {
     const candidate = tens * 10 + ones;
-    if (candidate === 0) return hasBonus ? 1 : 100;
+    if (candidate === 0) return 100;
     return candidate;
   }
   function rollPercentile(rng, bonusDice, penaltyDice) {
@@ -3357,17 +3357,18 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     for (let i = 0; i < extraTens + 1; i += 1) tensRolls.push(rng.int(0, 9));
     let chosenTens;
     let mode;
+    const candidates = tensRolls.map((t) => combine(t, ones));
     if (net > 0) {
-      chosenTens = Math.min(...tensRolls);
+      chosenTens = tensRolls[candidates.indexOf(Math.min(...candidates))];
       mode = "bonus";
     } else if (net < 0) {
-      chosenTens = Math.max(...tensRolls);
+      chosenTens = tensRolls[candidates.indexOf(Math.max(...candidates))];
       mode = "penalty";
     } else {
       chosenTens = tensRolls[0];
       mode = "normal";
     }
-    const finalRoll = combine(chosenTens, ones, net > 0);
+    const finalRoll = combine(chosenTens, ones);
     return {
       ones,
       tensRolls,
@@ -3406,6 +3407,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     } else {
       level = SUCCESS_LEVEL.FAIL;
     }
+    if (roll2 > threshold && level >= SUCCESS_LEVEL.REGULAR && level !== SUCCESS_LEVEL.CRITICAL) {
+      level = SUCCESS_LEVEL.FAIL;
+    }
     return {
       level,
       threshold,
@@ -3427,6 +3431,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     rules
   }) {
     const r = normalizeHouseRules(rules);
+    difficulty = normalizeDifficulty(kind, difficulty);
     const judged = judgeRoll(roll2, base, difficulty, r);
     const level = judged.level;
     return {
@@ -3455,6 +3460,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       }
     };
   }
+  function normalizeDifficulty(kind, difficulty = "regular") {
+    return kind === "sanity" ? "regular" : difficulty;
+  }
   function resolveWithRoll({
     roll: roll2,
     targetValue,
@@ -3482,6 +3490,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const rulesNow = () => normalizeHouseRules(typeof getRules === "function" ? getRules() : void 0);
     return {
       maxLevel: SUCCESS_LEVEL.CRITICAL,
+      normalizeDifficulty,
       /**
        * 联合检定。只做两件事：取当前村规、转发给模块级的 `resolveCombined`。
        * 策略里带一个方法（而不是让界面直接调模块函数），是为了让核心层的
@@ -6073,6 +6082,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const seen = /* @__PURE__ */ new Set();
     const out = [];
     for (const c of candidates) {
+      if (c.targetRoll > needed && c.level !== SUCCESS_LEVEL.CRITICAL) continue;
       if (c.targetRoll < 1 || c.targetRoll >= roll2) continue;
       if (seen.has(c.targetRoll)) continue;
       seen.add(c.targetRoll);
@@ -13270,30 +13280,26 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       tensRolls = [],
       ones = 0,
       chosenTens,
-      mode,
-      finalRoll
+      mode
     } = detail;
     const tensHtml = tensRolls.map((t) => {
       const used = t === chosenTens;
-      const value = t * 10;
-      const display = value === 0 ? "00" : String(value).padStart(2, "0");
       return `<div class="die die-tens ${used ? "die-used" : "die-drop"}" title="${used ? "采用" : "舍弃"}">
-      <span class="die-tag">十位骰</span>${display}</div>`;
+      <span class="die-tag">十位</span>${t}</div>`;
     }).join("");
     const tensValue = (Number(chosenTens) || 0) * 10;
-    const tensDisplay = tensValue === 0 ? "00" : String(tensValue).padStart(2, "0");
     const isDoubleZero = tensValue + ones === 0;
-    const zeroNote = isDoubleZero ? mode === "bonus" ? "，双零在奖励骰下取 1" : "，双零读作 100" : "";
-    const modeNote = mode === "bonus" ? "奖励骰：取较低十位" : mode === "penalty" ? "惩罚骰：取较高十位" : "常规掷骰";
+    const zeroNote = isDoubleZero ? "，双零读作 100" : "";
+    const modeNote = mode === "bonus" ? "奖励骰：取较低结果" : mode === "penalty" ? "惩罚骰：取较高结果" : "常规掷骰";
     return `
     <div class="roll-dice">
       ${tensHtml}
       <div class="die" ${mode === "normal" ? 'data-used="1"' : ""} title="个位骰">
-        <span class="die-tag">个位骰</span>${ones}
+        <span class="die-tag">个位</span>${ones}
       </div>
     </div>
     <div class="tiny dim">
-      十位骰 ${tensDisplay} + 个位骰 ${ones} = <b>${num(finalRoll)}</b>${zeroNote}
+      十位 ${num(chosenTens)} × 10 + 个位 ${ones} = <b>${tensValue + ones}</b>${zeroNote}
       <span class="dim">· ${modeNote}</span>
     </div>
   `;
@@ -13552,10 +13558,12 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       <div class="tiny dim mt-3">改判后的检定不计入技能成长。幸运不可用于幸运检定、伤害骰、理智检定与理智损失骰。</div>
     </div>`;
   }
-  function difficultyPicker(rulepack, value, modifier2, active) {
+  function difficultyPicker(rulepack, value, modifier2, active, kind) {
+    const choices = DIFFICULTIES.filter((d) => (rulepack.checkStrategy.normalizeDifficulty?.(kind, d.id) ?? d.id) === d.id);
     return `
+    <div class="check-difficulty">
     <div class="diff-pick" role="radiogroup" aria-label="检定难度">
-      ${DIFFICULTIES.map((d) => {
+      ${choices.map((d) => {
       const t = rulepack.adjustTarget(value + modifier2, d.id);
       const on = d.id === active;
       return `
@@ -13566,7 +13574,8 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         </button>`;
     }).join("")}
     </div>
-    <p class="field-help" style="margin:var(--s3) 0 0">点击任一档位即可切换。目标值已含下方的修正值。</p>
+    <p class="field-help" style="margin:var(--s3) 0 0">${choices.length === 1 ? "理智检定按当前理智值判断。目标值已含修正值。" : "点击任一档位即可切换。目标值已含下方的修正值。"}</p>
+    </div>
   `;
   }
   function opposedCard(entry) {
@@ -13604,7 +13613,6 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (num(panel2.penalty)) bits.push(`惩罚骰 ${num(panel2.penalty)}`);
     if (num(panel2.modifier)) bits.push(`修正 ${num(panel2.modifier) > 0 ? "+" : ""}${num(panel2.modifier)}`);
     if (panel2.mode === "combined") bits.push("联合");
-    if (panel2.kind === "sanity") return `掷骰（${bits.join(" · ")}）`;
     const target = rulepack.adjustTarget(num(panel2.value) + num(panel2.modifier), panel2.difficulty);
     return `掷骰（${bits.join(" · ")} · 目标 ${num(target)}）`;
   }
@@ -13702,7 +13710,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       <div>
         <div class="card card-tight" style="margin:0">
           <div class="card-title">难度 · 目标值</div>
-          ${difficultyPicker(rulepack, value, num(modifier2), difficulty)}
+          ${difficultyPicker(rulepack, value, num(modifier2), difficulty, kind)}
           <div class="check-side-stats mt-4">
             ${sideStatsHtml(rulepack, character)}
           </div>
@@ -13776,7 +13784,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       targetId: target.id,
       hint: target.hint,
       // 难度与奖惩骰**沿用上一次**（见 lastParams 的说明）
-      difficulty: lastParams.difficulty,
+      difficulty: rulepack.checkStrategy.normalizeDifficulty?.(target.kind ?? "skill", lastParams.difficulty) ?? lastParams.difficulty,
       bonus: sanityDiceLocked ? 0 : lastParams.bonus,
       penalty: sanityDiceLocked ? 0 : lastParams.penalty,
       modifier: lastParams.modifier,
@@ -13898,7 +13906,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       if (diffBtn) {
         const next = diffBtn.dataset.difficulty;
         if (next !== panel.difficulty) {
-          panel.difficulty = next;
+          panel.difficulty = rulepack.checkStrategy.normalizeDifficulty?.(panel.kind, next) ?? next;
           rememberParams();
           repaintDifficulty(rulepack);
           panel.options = [];
@@ -13955,9 +13963,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return false;
   }
   function repaintDifficulty(rulepack) {
-    const box = panelBody()?.querySelector(".diff-pick");
+    const box = panelBody()?.querySelector(".check-difficulty");
     if (!box) return;
-    box.outerHTML = difficultyPicker(rulepack, panel.value, panel.modifier, panel.difficulty);
+    box.outerHTML = difficultyPicker(rulepack, panel.value, panel.modifier, panel.difficulty, panel.kind);
     const rollBtn = panelBody()?.querySelector('[data-action="roll"]');
     if (rollBtn) rollBtn.textContent = rollButtonText(panel, rulepack);
   }
@@ -17511,7 +17519,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.3";
+  var APP_VERSION = "0.1.4";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
