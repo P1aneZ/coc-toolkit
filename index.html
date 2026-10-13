@@ -188,7 +188,10 @@ p { margin: 0; }
  * 品牌行里的版本号：不跟着大写（不然 `v0.1.9` 会变成 `V0.1.9`）、
  * 比副标题略亮一档好认，但**不用强调色** —— 本项目的约定是有颜色的块只表达「当前选中的那一项」。
  */
-.brand-version {
+/* 选择器写到 `.brand-text p .brand-version`：父级那句 uppercase 是给副标题用的，
+   版本号不该跟着变全大写（`text-transform` 会继承，直接写 `.brand-version` 靠"直接规则胜继承"
+   虽然也成立，但写死两级更不容易被后人改动绊倒） */
+.brand-text p .brand-version {
   text-transform: none;
   letter-spacing: .06em;
   color: var(--text-2);
@@ -447,6 +450,51 @@ label.field { display: block; margin-bottom: var(--s4); }
   border-bottom: 1px solid var(--line-1);
   margin-bottom: var(--s3);
 }
+/**
+ * ── 紧凑化：把「一大片空地」收掉 ──────────────────────────────
+ * 用户 2026-10-13 的意见：这类大片空白都可以考虑更紧凑。
+ */
+
+/**
+ * 攻击结算：表单与结果左右并排。
+ *
+ * 两块各自占满整宽时，右侧一大片什么都没有 —— 表单里的下拉与数字框都被拉得很宽，
+ * 而它们承载的内容（一个名字、一位数）根本用不到那么宽。
+ * 窄屏（<1000px）退回上下堆叠，免得两块都窄得读不了。
+ */
+.attack-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  gap: var(--s4);
+  align-items: start;
+}
+
+/**
+ * 并排之后表单只剩一半宽，内部再分两列会把下拉里的名字截断
+ * （1080 窗口下实测：「尼古拉科维奇（敏捷 90」后面直接没了）。
+ * 表单内部因此改成单列 —— 每行一个字段，宽度够读全名字。
+ */
+.attack-split [data-attack-panel] .grid-2 { grid-template-columns: minmax(0, 1fr); }
+@media (max-width: 1000px) {
+  .attack-split { grid-template-columns: minmax(0, 1fr); }
+}
+
+/** 骰数输入框只有 0–2 一位数：按内容定宽，不要跟着栅格撑开 */
+.grid-tight { grid-template-columns: repeat(4, minmax(0, 104px)); justify-content: start; }
+
+/**
+ * 数字输入框按内容定宽。
+ *
+ * 空白扫描（2026-10-14）里最一致的形态：`.field > input[type=number]` 被栅格拉到
+ * 265–453px，而里面永远是「11」「3」这类一两位的数 —— 右边整片是空的。
+ * 只收**数字框**，不动下拉：下拉里装的是角色名，收窄会截断（本批在攻击面板上刚踩过一次）。
+ */
+.field > input[type="number"] { max-width: 160px; }
+
+/** 已撤销的掷骰记录：内容画横线（操作按钮保持可读），整行压暗一档 */
+tr.is-undone td:not(:last-child) { text-decoration: line-through; opacity: .55; }
+tr.is-undone .badge-dim { text-decoration: none; }
+
 .field-error {
   font-size: 12px;
   color: var(--danger);
@@ -2729,6 +2777,12 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     a.click();
     a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1e3);
+  }
+  function repaint(container, html) {
+    if (!container) return;
+    const top = container.scrollTop;
+    container.innerHTML = html;
+    container.scrollTop = top;
   }
   function safeFilename(name) {
     return String(name || "investigator").replace(/[\\/:*?"<>|]/g, "_").slice(0, 40);
@@ -5833,6 +5887,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     FIGHTBACK: "fightback",
     NONE: "none"
   };
+  var READIED_FIREARM_DEX_BONUS = 50;
+  function initiativeOf(dex, { hasFirearm = false } = {}) {
+    return (Number(dex) || 0) + (hasFirearm ? READIED_FIREARM_DEX_BONUS : 0);
+  }
   var DEFENSE_LABELS = {
     dodge: "闪避",
     fightback: "反击",
@@ -6793,6 +6851,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       bandForYards,
       DEFENSE,
       DEFENSE_LABELS,
+      /** 已准备火器的先手加成与先手值计算（火器规则） */
+      READIED_FIREARM_DEX_BONUS,
+      initiativeOf,
       weapons: ALL_WEAPONS,
       weaponsById: WEAPON_MAP,
       weaponsBySkill,
@@ -7033,9 +7094,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       }
       cleanupFn = null;
     }
-    if (activeId && activeId !== id) scrollMemo.set(activeId, viewport.scrollTop);
-    activeId = id;
-    viewport.scrollTop = scrollMemo.get(id) ?? 0;
+    if (activeId !== id) {
+      if (activeId) scrollMemo.set(activeId, viewport.scrollTop);
+      activeId = id;
+      viewport.scrollTop = scrollMemo.get(id) ?? 0;
+    }
     navToken += 1;
     const token = navToken;
     const result = view.render(viewport, ctx);
@@ -8305,7 +8368,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       <summary class="tiny">自定义护甲${ownArmor ? `（${esc(ownArmor.label)}）` : ""}</summary>
       <div class="custom-armor-form mt-3">
         <div class="kp-note tiny">规则书之外、或某个模组特有的护甲写在这里。只有一件：
-        设置后会出现在上面的护甲清单里，也可以把它登记为身上穿着的那件。</div>
+        设置后会出现在上方的护甲清单中，亦可登记为身上穿着的那件。</div>
         <div class="row mt-3">
           <input type="text" data-ca-name style="flex:1;min-width:140px"
             value="${esc(ownArmor?.label ?? "")}" placeholder="例如：特制防刺背心" autocomplete="off">
@@ -9260,7 +9323,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       const paint2 = () => {
         character = ensureCharacter(rulepack, ctx);
         const body = step === 0 ? renderBasics(rulepack, character) : step === 1 ? renderAttributes(rulepack, character) : step === 2 ? renderSkills(rulepack, character) : step === 3 ? renderBackground(rulepack, character) : renderReview(rulepack, character);
-        container.innerHTML = `
+        repaint(container, `
         ${viewHead("车卡向导", "按规则书流程分五步创建一名调查员。每一步都可以回退修改，数据不会丢失。")}
 
         <div class="wizard-bar card card-tight">
@@ -9286,7 +9349,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <span class="hint dim" data-step-indicator>第 ${step + 1} / ${WIZARD_STEPS.length} 步</span>
           ${step < WIZARD_STEPS.length - 1 ? '<button type="button" class="btn btn-primary" data-action="next">继续 →</button>' : '<button type="button" class="btn btn-primary" data-action="finish">完成并前往角色卡 →</button>'}
         </div>
-      `;
+      `);
         const stepperEl = container.querySelector("#wizard-stepper");
         stepperEl.replaceWith(stepper(WIZARD_STEPS, step, {
           onJump: (i) => {
@@ -10071,7 +10134,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     <p class="mono mt-3">智力目标 ${value}</p>
     ${value <= 0 ? '<p class="field-help">智力尚未填写。可暂后处理，并在角色资料中补充智力。</p>' : ""}
     <p class="field-help">点「掷骰判定」即在本窗口掷出并给出结果。
-    想自己掷也可以：关掉本窗口，在角色卡的属性行点「智力」。
+    需要自行掷骰时，可关闭本窗口，在角色卡的属性行点击「智力」。
     （抽屉里的「连续检定」只列技能，属性不在其中。）</p>
     <div class="btn-row mt-4"><button type="button" class="btn btn-primary" data-insanity-prompt-action="roll" ${value <= 0 ? "disabled" : ""}>掷骰判定</button>
     <button type="button" class="btn" data-insanity-prompt-action="cancel">暂后处理</button>
@@ -10367,7 +10430,21 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
        * **这里是白名单**：只挑写明的字段，`save()` 存进去的东西不列出来就会被静默丢掉 ——
        * 这类「存了却读不回来」的坑，`journal.js` 的 `slimResult` 已经吃过两次，这是第三处。
        */
-      lastAttack: saved.lastAttack ?? null
+      lastAttack: saved.lastAttack ?? null,
+      /**
+       * 撤销槽位：**最后一次可撤销的动作**（攻击结算或回合推进）。
+       * 与 `lastAttack` 一样必须列进白名单 —— 这里是白名单式构造，漏了就是「存了读不回来」。
+       */
+      undoSlot: saved.undoSlot ?? (saved.lastAttack?.undo ? { kind: "attack", ...saved.lastAttack.undo } : null)
+    };
+  }
+  function markTurnUndo(what) {
+    state2.undoSlot = {
+      kind: "turn",
+      what,
+      at: Date.now(),
+      turnIndex: state2.turnIndex,
+      round: state2.round
     };
   }
   var isResidue = () => state2.combatants.length > 0 && state2.session !== SESSION_ID;
@@ -10394,8 +10471,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       residue: state2.session !== SESSION_ID
     };
   }
-  function sortByDex(list) {
-    return [...list].sort((a, b) => num(b.dex) - num(a.dex));
+  function initiativeOf2(c, bonus) {
+    return num(c.dex) + (c.hasFirearm ? num(bonus) : 0);
+  }
+  function initiativeLabel(c, bonus) {
+    if (!c.hasFirearm) return `敏捷 ${num(c.dex)}`;
+    return `敏捷 ${num(c.dex)} + ${num(bonus)}（已准备枪械）= 先手 ${initiativeOf2(c, bonus)}`;
+  }
+  function sortByInitiative(list, bonus) {
+    return [...list].sort((a, b) => initiativeOf2(b, bonus) - initiativeOf2(a, bonus));
   }
   function currentCombatant() {
     return state2.combatants[state2.turnIndex] ?? null;
@@ -10440,7 +10524,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const allowed = /* @__PURE__ */ new Set(["unarmed", ...registered]);
     return pool.filter((w) => allowed.has(w.id)).map((w) => w.id);
   }
-  function turnBarHtml() {
+  function turnBarHtml(bonus) {
     const cur = currentCombatant();
     return `
     <div class="card card-data combat-turnbar mb-4" data-combat-turnbar tabindex="-1" role="region" aria-label="当前行动与先手序列">
@@ -10450,13 +10534,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <span class="mono" style="font-size:20px;color:var(--brass)"> ${num(state2.round)} </span>
           <span class="dim tiny">轮</span>
           ${cur ? `<span class="dim"> · 当前行动：</span><b>${esc(cur.name)}</b>
-            <span class="dim tiny">（敏捷 ${num(cur.dex)}）</span>
+            <span class="dim tiny">（${initiativeLabel(cur, bonus)}）</span>
             <span class="combat-current-hp mono">生命 ${num(cur.hp.current)} / ${num(cur.hp.max)}</span>` : '<span class="dim"> · 尚未添加参战者</span>'}
         </div>
         <div class="btn-row">
           <button type="button" class="btn" data-action="prev-turn" ${state2.combatants.length ? "" : "disabled"}>← 上一位</button>
           <button type="button" class="btn btn-primary" data-action="next-turn" ${state2.combatants.length ? "" : "disabled"}>下一位 →</button>
           <button type="button" class="btn btn-ghost" data-action="reset-round">重置</button>
+          <button type="button" class="btn" data-action="undo-last" ${state2.undoSlot ? "" : "disabled"}>${state2.undoSlot ? `撤销：${state2.undoSlot.kind === "attack" ? "攻击结算" : state2.undoSlot.what ?? "回合推进"}` : "无可撤销"}</button>
           ${cur ? '<button type="button" class="btn btn-ghost" data-action="jump-attack">定位结算</button>' : ""}
         </div>
       </div>
@@ -10466,8 +10551,8 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             <button type="button" class="order-chip" data-turn="${i}"
               aria-current="${i === state2.turnIndex ? "true" : "false"}"
               data-state="${i === state2.turnIndex ? "current" : i < state2.turnIndex ? "done" : "todo"}"
-              ${tipAttrs({ title: c.name, body: `敏捷 ${num(c.dex)} · 生命 ${num(c.hp.current)}/${num(c.hp.max)}${c.note ? ` · ${c.note}` : ""}` })}>
-              <span class="order-dex">${num(c.dex)}</span>
+              ${tipAttrs({ title: c.name, body: `${initiativeLabel(c, bonus)} · 生命 ${num(c.hp.current)}/${num(c.hp.max)}${c.note ? ` · ${c.note}` : ""}` })}>
+              <span class="order-dex">${num(c.dex)}${c.hasFirearm ? `<span class="dim tiny"> +${num(bonus)}</span>` : ""}</span>
               <span>${esc(c.name)}</span>
               <span class="mono">${num(c.hp.current)} / ${num(c.hp.max)}</span>
               ${i === state2.turnIndex ? "<span>行动中</span>" : i < state2.turnIndex ? "<span>已行动</span>" : ""}
@@ -10540,18 +10625,30 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       <label class="field">
         <span class="field-label">临时添加（杂兵、怪物）</span>
         <div class="grid-4">
-          <input type="text" data-add="name" placeholder="名称" autocomplete="off">
-          <input type="number" data-add="dex" placeholder="敏捷" value="50" min="1" max="200">
-          <input type="number" data-add="dodge" placeholder="闪避" value="25" min="0" max="200"
-            aria-label="闪避技能值">
-          <input type="number" data-add="hp" placeholder="生命" value="10" min="1" max="999">
+          <label class="field">
+            <span class="field-label">名称</span>
+            <input type="text" data-add="name" placeholder="例如 深潜者" autocomplete="off">
+          </label>
+          <label class="field">
+            <span class="field-label">敏捷</span>
+            <input type="number" data-add="dex" value="50" min="1" max="200">
+          </label>
+          <label class="field">
+            <span class="field-label">闪避</span>
+            <input type="number" data-add="dodge" value="25" min="0" max="200">
+          </label>
+          <label class="field">
+            <span class="field-label">生命</span>
+            <input type="number" data-add="hp" value="10" min="1" max="999">
+          </label>
         </div>
         <div class="row mt-3">
           <input type="text" data-add="note" placeholder="备注（可选）" autocomplete="off" style="flex:1;min-width:140px">
           <button type="button" class="btn btn-primary" data-action="add-manual">添加</button>
         </div>
         <span class="field-help">闪避默认取敏捷的一半（规则值），改敏捷会自动跟随；手动改过之后就不再跟着变。
-          其余技能仍无从得知 —— 需要精确判定其他技能时，请从角色库引入。</span>
+          其余技能仍无从得知 —— 需要精确判定其他技能时，请从角色库引入；
+          临时参战者攻击时，技能值可在攻击面板直接填写（无需先建角色卡）。</span>
       </label>
 
       ${state2.combatants.length ? `
@@ -10735,7 +10832,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${bandsHtml}
       ${defenseHtml}
 
-      <div class="grid-4">
+      <div class="grid-4 grid-tight">
         <label class="field">
           <span class="field-label">攻方奖励骰</span>
           <input type="number" data-attack="atkBonus" value="${num(form.atkBonus)}" min="0" max="2">
@@ -10885,7 +10982,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       title: "先手与行动",
       items: [
         "按敏捷从高到低行动；敏捷相同时，拥有更高战斗技能的一方先行。",
-        "已持于手中待发的枪械按「敏捷 + 50」参与排序：扣动扳机快于挥动近战武器。",
+        "已持于手中待发的枪械按「敏捷 + 50」参与排序：扣动扳机快于挥动近战武器。本工具按角色卡上<b>登记的火器</b>自动计入（先手序列里写作「敏捷 75 + 50」）；火器不在手中时，应在该角色卡上取消登记。",
         "每个角色每轮一次行动：攻击、闪避、反击、机动、逃跑或施法。",
         "部分怪物每轮可行动多次，因而也能多次闪避或反击。"
       ]
@@ -10946,7 +11043,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return `
     ${viewHead("战斗轮", "先手与回合管理、参战者状态追踪及攻击结算。")}
 
-    ${turnBarHtml()}
+    ${turnBarHtml(rulepack.combat.READIED_FIREARM_DEX_BONUS)}
 
     ${isResidue() ? `<div class="notice notice-warn mb-4" data-combat-residue>保留上次战斗局面：${list.length} 名参战者 · 第 ${num(state2.round, 1)} 轮。可继续使用，或展开「管理名单」清空战斗。</div>` : ""}
     <details class="card card-data combat-roster-tools" data-roster-tools ${!list.length || rosterExpanded ? "open" : ""}>
@@ -10961,7 +11058,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
     <section class="section" data-combat-attack tabindex="-1" role="region" aria-label="攻击结算">
       <div class="section-head"><h3>攻击结算</h3><span class="hint">选择双方、武器与结算参数</span></div>
-      ${attackPanelHtml(rulepack) + attackResultHtml()}
+      ${/**
+    * 有结果时**左右并排**：两块各自占满整宽时，右侧会留下大片空白。
+    * 没有结果时表单仍然独占整宽 —— 那时右侧没东西可放，并排只会把表单挤窄。
+    */
+    lastAttack ? `<div class="attack-split">${attackPanelHtml(rulepack)}${attackResultHtml()}</div>` : attackPanelHtml(rulepack) + attackResultHtml()}
     </section>
 
     ${section("战斗动作速查", referenceHtml(), "先手、应对、伤害与火器规则")}
@@ -11077,7 +11178,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         if (!armorPool(rulepack, cachedCharacter(findBy(form.defenderId))).some((a) => a.id === form.armorId)) {
           form.armorId = "none";
         }
-        container.innerHTML = buildHtml(rulepack, rosterExpanded);
+        repaint(container, buildHtml(rulepack, rosterExpanded));
         const strip = container.querySelector(".order-strip");
         const currentChip = strip?.querySelector('[data-state="current"]');
         if (strip && currentChip) {
@@ -11146,8 +11247,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
         const openedChar = getState().character;
         const logTargetChar = !attacker?.characterId ? null : openedChar?.id === attacker.characterId ? openedChar : cachedCharacter(attacker) ?? await backend.load(attacker.characterId);
+        let rollEntry = null;
         if (logTargetChar && result.attacker) {
-          recordRoll(logTargetChar, {
+          rollEntry = recordRoll(logTargetChar, {
             kind: "skill",
             label: `战斗 · ${attacker?.name ?? "攻方"} 用 ${weapon.label}`,
             input: {
@@ -11179,6 +11281,19 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         } else if (result.attacker) {
           toast("攻击方为临时参战者，没有角色卡；该次攻击不写入掷骰日志", "info", 3600);
         }
+        const undo = { at: Date.now() };
+        if (rollEntry) undo.roll = { characterId: logTargetChar.id, id: rollEntry.id };
+        if (defender) {
+          undo.defender = { id: defender.id, hp: num(defender.hp.current, 0) };
+          const card = defender.characterId ? cachedCharacter(defender) ?? await backend.load(defender.characterId) : null;
+          if (card) {
+            undo.character = {
+              id: defender.characterId,
+              hp: num(card.resources?.hp?.current, 0),
+              wound: card.extra?.wound ? JSON.parse(JSON.stringify(card.extra.wound)) : null
+            };
+          }
+        }
         let applied = 0;
         let woundNote = "";
         if (result.damage?.applied > 0 && defender) {
@@ -11202,11 +11317,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           }
           if (fx) result.effects = fx;
         }
+        state2.undoSlot = { kind: "attack", at: Date.now(), ...undo };
         lastAttack = {
           ...result,
           seed,
           applied,
           woundNote,
+          undo,
           attackerId: attacker?.id ?? "",
           defenderId: defender?.id ?? "",
           attackerName: attacker?.name ?? "攻方",
@@ -11218,6 +11335,63 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         const resultCard2 = container.querySelector("[data-combat-result]");
         resultCard2?.scrollIntoView?.({ block: "nearest" });
         resultCard2?.focus({ preventScroll: true });
+      };
+      const undoLastAction = async () => {
+        const slot = state2.undoSlot;
+        if (!slot) {
+          toast("没有可撤销的操作", "bad", 3600);
+          return;
+        }
+        if (slot.kind === "turn") {
+          state2.turnIndex = num(slot.turnIndex, state2.turnIndex);
+          state2.round = Math.max(1, num(slot.round, state2.round));
+          clampTurn();
+          syncAttackerToTurn();
+          state2.undoSlot = null;
+          save();
+          paint2();
+          toast(`已撤销：${slot.what ?? "回合推进"}`, "ok", 3600);
+          return;
+        }
+        const u = slot;
+        if (u.defender) {
+          const c = state2.combatants.find((x) => x.id === u.defender.id);
+          if (c) c.hp.current = num(u.defender.hp, c.hp.current);
+        }
+        const openedChar = getState().character;
+        const loadCard = async (id) => openedChar?.id === id ? openedChar : await backend.load(id);
+        const writeCard = async (data, label) => {
+          if (data === openedChar) await saveCharacter(data);
+          else await persistObject({ kind: "character", id: data.id, label, payload: data });
+          characterCache.set(data.id, data);
+        };
+        let cardRestored = false;
+        if (u.character?.id) {
+          const data = await loadCard(u.character.id);
+          if (data) {
+            if (data.resources?.hp) data.resources.hp.current = num(u.character.hp, data.resources.hp.current);
+            data.extra ?? (data.extra = {});
+            if (u.character.wound === null) delete data.extra.wound;
+            else data.extra.wound = { ...u.character.wound };
+            await writeCard(data, `${data.name || "该角色"}的伤势`);
+            cardRestored = true;
+          }
+        }
+        if (u.roll?.id) {
+          const data = await loadCard(u.roll.characterId);
+          const entry = data?.rolls?.find((r) => r.id === u.roll.id);
+          if (entry) {
+            entry.undone = true;
+            entry.undoneAt = Date.now();
+            entry.undoneNote = "结算已撤销";
+            await writeCard(data, `${data.name || "该角色"}的掷骰日志`);
+          }
+        }
+        lastAttack = null;
+        state2.undoSlot = null;
+        save();
+        paint2();
+        toast(`已撤销：攻击结算${cardRestored ? "，角色卡也一并还原" : ""}`, "ok", 4600);
       };
       const onClick = async (event) => {
         const target = event.target;
@@ -11288,6 +11462,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
         const turnChip = target.closest("[data-turn]");
         if (turnChip) {
+          markTurnUndo("切换行动者");
           state2.turnIndex = Number(turnChip.dataset.turn);
           save();
           paint2();
@@ -11329,8 +11504,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           await runAttack();
           return;
         }
+        if (action === "undo-last") {
+          await undoLastAction();
+          return;
+        }
         if (action === "next-turn") {
           if (!state2.combatants.length) return;
+          markTurnUndo("下一位");
           state2.turnIndex += 1;
           if (state2.turnIndex >= state2.combatants.length) {
             state2.turnIndex = 0;
@@ -11344,6 +11524,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         }
         if (action === "prev-turn") {
           if (!state2.combatants.length) return;
+          markTurnUndo("上一位");
           state2.turnIndex -= 1;
           clampTurn();
           syncAttackerToTurn();
@@ -11352,6 +11533,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           return;
         }
         if (action === "reset-round") {
+          markTurnUndo("重置回合");
           state2.round = 1;
           state2.turnIndex = 0;
           save();
@@ -11360,7 +11542,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           return;
         }
         if (action === "resort") {
-          state2.combatants = sortByDex(state2.combatants);
+          state2.combatants = sortByInitiative(state2.combatants, rulepack.combat.READIED_FIREARM_DEX_BONUS);
           state2.turnIndex = 0;
           save();
           paint2();
@@ -11405,9 +11587,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             san: { current: num(data.resources?.san?.current), max: num(data.resources?.san?.max) },
             mov: num(data.derived?.mov) || 8,
             isPlayer: !data.meta?.isNpc,
-            note: data.meta?.occupation || ""
+            note: data.meta?.occupation || "",
+            /**
+             * 是否带火器 —— 决定它是否按「敏捷 + 50」参与先手（规则书 · 火器规则）。
+             * 取角色卡上**登记**的武器：登记即表示这一局带着并用它结算。
+             */
+            hasFirearm: carriedWeaponIds(rulepack, data).map((wid) => findWeapon(rulepack, data, wid)).some((w) => w && rulepack.combat.isFirearm(w))
           });
-          state2.combatants = sortByDex(state2.combatants);
+          state2.combatants = sortByInitiative(state2.combatants, rulepack.combat.READIED_FIREARM_DEX_BONUS);
           save();
           paint2();
           toast(`已引入 ${data.name || "调查员"}`);
@@ -11437,7 +11624,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             isPlayer: false,
             note: String(get("note")).trim()
           });
-          state2.combatants = sortByDex(state2.combatants);
+          state2.combatants = sortByInitiative(state2.combatants, rulepack.combat.READIED_FIREARM_DEX_BONUS);
           save();
           paint2();
           toast(`已添加 ${name}`);
@@ -11633,7 +11820,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
   function uid3(prefix = "x") {
     return `${prefix}_${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`;
   }
-  function sortByDex2(list) {
+  function sortByDex(list) {
     return [...list].sort((a, b) => num(b.dex) - num(a.dex));
   }
   var sideLabel = (side) => side === "flee" ? "逃跑" : "追捕";
@@ -11659,7 +11846,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     return all.reduce((m, p) => Math.min(m, num(p.mov) || 99), 99);
   }
   function currentTurn() {
-    const ordered = sortByDex2(state3.participants);
+    const ordered = sortByDex(state3.participants);
     return ordered[state3.turnIndex] ?? null;
   }
   function actionsLeftOf(p) {
@@ -11719,7 +11906,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <table class="compact-table">
             <thead><tr><th>名称</th><th>立场</th><th>方式</th><th class="num">DEX</th><th class="num">MOV</th><th class="num">动作</th><th class="num">位置</th><th></th></tr></thead>
             <tbody>
-              ${sortByDex2(state3.participants).map((p) => {
+              ${sortByDex(state3.participants).map((p) => {
       const adj = p.speedDelta ? p.speedDelta > 0 ? " lv-extreme" : " lv-fail" : "";
       return `<tr data-chase-participant="${esc(p.id)}">
                   <td>${esc(p.name)}${p.note ? `<span class="dim tiny"> · ${esc(p.note)}</span>` : ""}</td>
@@ -11823,7 +12010,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const C = rulepack.chase;
     if (!state3.started) return "";
     const slow = slowestMov();
-    const ordered = sortByDex2(state3.participants);
+    const ordered = sortByDex(state3.participants);
     const cur = currentTurn();
     const over = state3.lastOutcome;
     return `
@@ -11940,7 +12127,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <span class="spacer"></span>
         <span class="dim tiny">01–59 畅通 · 60–84 常规 · 85–95 困难 · 96–100 极限</span>
       </div>
-      <p class="field-help mt-3">环境特别危险可加惩罚骰，几乎无阻碍可加奖励骰 —— 按现场判断，没有固定表。</p>
+      <p class="field-help mt-3">环境特别危险可加惩罚骰，几乎无阻碍可加奖励骰 —— 由守秘人按现场裁量，无固定表。</p>
 
       ${state3.locations.length ? `
         <div class="table-wrap mt-4">
@@ -12046,7 +12233,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       rulepackRef = rulepack;
       let disposed = false;
       const paint2 = () => {
-        container.innerHTML = buildHtml2(rulepack);
+        repaint(container, buildHtml2(rulepack));
       };
       const primeAndRepaint = () => {
         const missing = state3.participants.some((p) => p.characterId && !characterCache2.has(p.characterId));
@@ -12215,7 +12402,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           return;
         }
         if (action === "focus-turn") {
-          const ordered = sortByDex2(state3.participants);
+          const ordered = sortByDex(state3.participants);
           const i = ordered.findIndex((p) => p.id === btn.dataset.id);
           if (i >= 0) {
             state3.turnIndex = i;
@@ -12279,7 +12466,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           <div class="row mt-4">
             <label class="field"><span class="field-label">前移几个地点</span>
               <input type="number" data-pedal="n" value="2" min="2" max="5"></label>
-            <button type="button" class="btn btn-primary" data-chase-action="pedal-go" data-id="${esc(p.id)}">确定</button>
+            <button type="button" class="btn btn-primary" data-chase-action="pedal-go" data-id="${esc(p.id)}">前移并检定</button>
           </div>
           <p class="field-help mt-3">2–3 个地点 → 危害 +1 惩罚骰；4–5 个地点 → +2 惩罚骰。</p>
         `);
@@ -12982,7 +13169,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     render(container, ctx) {
       const { rulepack, navigate: navigate2 } = ctx;
       const paint2 = () => {
-        container.innerHTML = buildHtml3(rulepack);
+        repaint(container, buildHtml3(rulepack));
       };
       const onClick = async (event) => {
         const target = event.target;
@@ -13312,7 +13499,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       }
       if (action === "save") {
         if (!npcDraft) {
-          toast("先生成一个 NPC", "bad");
+          toast("请先生成 NPC", "bad");
           return;
         }
         try {
@@ -13345,7 +13532,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     render(container, ctx) {
       const { rulepack, navigate: navigate2 } = ctx;
       const paint2 = () => {
-        container.innerHTML = buildHtml4();
+        repaint(container, buildHtml4());
       };
       const openItem = async (id) => {
         if (!id) return;
@@ -14154,7 +14341,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <b>连续检定</b>
         <span class="dim tiny">点一个即可换目标，不必关闭抽屉；难度与奖惩骰保留</span>
       </div>
-      <p class="field-help" style="margin:6px 0 0">这里只列<b>技能</b> —— 属性检定请从角色卡的属性行进入（属性那一栏点一下即可）。</p>
+      <p class="field-help" style="margin:6px 0 0">这里只列<b>技能</b> —— 属性检定请从角色卡的属性行进入（属性栏点击即可）。</p>
       <div class="quick-chips">
         ${top.map(chip).join("")}
       </div>
@@ -15986,7 +16173,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       默认只列「总值 / 困难 / 极限」—— 桌上要读的就是这三个；「初始 / 职业 / 兴趣 / 成长」是记账列，
       点「分配明细」才展开（幕间核对与花幸运改判时用）。
       左侧「按名称筛选技能」输入后只留匹配项，**结果行可用键盘逐个走到、回车打开检定** ——
-      技能说明在悬停提示里，键盘与触屏改用检定抽屉阅读（点开抽屉不会掷骰）。</p>
+      技能说明位于悬停提示；键盘与触屏可在检定抽屉中阅读（打开抽屉不会掷骰）。</p>
     </div>
   `;
     const gear = character.extra?.gear ?? {};
@@ -16114,7 +16301,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       }
       syncResources(rulepack, character);
       const paint2 = () => {
-        container.innerHTML = buildHtml5(rulepack, character);
+        repaint(container, buildHtml5(rulepack, character));
       };
       const runGearAction = (action, value) => {
         const result = applyGearAction(rulepack, character, action, value);
@@ -16644,7 +16831,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <button type="button" class="btn btn-ghost" data-action="int-check-skip">本局不检定</button>
       </div>
       <p class="field-help" style="margin:var(--s2) 0 0">本按钮<b>当场掷骰并给出结果</b>，结果留在本页下方。
-        需要自掷或查看骰面时，可在角色卡的属性行点「智力」—— 抽屉里的「连续检定」只列技能，属性不在其中。</p>
+        需要自行掷骰或查看骰面时，可在角色卡的属性行点击「智力」—— 抽屉中的「连续检定」仅列技能，属性不在其中。</p>
     </div>`;
   }
   function tempInsanityBlockHtml(state4) {
@@ -16814,13 +17001,13 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       }
       const sanId = rulepack.sanityResourceId;
       if (!character.resources?.[sanId]) {
-        container.innerHTML = viewHead("理智追踪", "") + notice("当前规则包未定义理智资源。", "warn");
+        repaint(container, viewHead("理智追踪", "") + notice("当前规则包未定义理智资源。", "warn"));
         return;
       }
       bindSanityState(character);
       syncResources(rulepack, character);
       const paint2 = () => {
-        container.innerHTML = buildHtml6(rulepack, character);
+        repaint(container, buildHtml6(rulepack, character));
       };
       const readFields2 = () => ({
         day: num(container.querySelector('[data-field="day"]')?.value, 1),
@@ -16946,7 +17133,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           }
           saveCharacter(character);
           toast(`已添加${CONDITION_KINDS[addKind].label}：${label}`);
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         const removeBtn = target.closest("[data-cond-remove]");
@@ -16954,7 +17141,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           removeCondition(character, removeBtn.dataset.condKind, removeBtn.dataset.condRemove);
           saveCharacter(character);
           toast("已移除该条目");
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         const clearBtn = target.closest("[data-cond-clear]");
@@ -16963,7 +17150,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           const n = clearConditions(character, kind2);
           saveCharacter(character);
           toast(`已清除 ${n} 条${CONDITION_KINDS[kind2].label}`);
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         const btn = target.closest("[data-action]");
@@ -17051,7 +17238,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
               入口见页面顶部的待办条。</p>
             </div>` : ""}
         `;
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           promptPendingIntCheck(rulepack, character, paint2);
           return;
         }
@@ -17101,7 +17288,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         `;
           lossDraftTouched = true;
           lossDraft = { day: f.day, spec: "0/1D6", source: "" };
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           promptPendingIntCheck(rulepack, character, paint2);
           return;
         }
@@ -17110,7 +17297,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           delete character.extra.pendingIntCheck;
           saveCharacter(character);
           toast("已清除待办：本局不做智力检定");
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         if (action === "int-check") {
@@ -17146,7 +17333,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             ${outcome.insane ? '<div class="roll-note">接下来抽取一次疯狂发作症状（即时或总结）。</div>' : ""}
           </div>
         `;
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         if (action === "end-temp-insanity") {
@@ -17166,7 +17353,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
           });
           saveCharacter(character);
           toast("已标记临时疯狂结束");
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
           return;
         }
         const rng = createRng();
@@ -17218,7 +17405,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             ${drawn.detail ? `<div class="roll-meta"><span>具体表现 <b>${esc(drawn.detail.label)}</b></span></div>` : ""}
           </div>
         `;
-          container.innerHTML = buildHtml6(rulepack, character);
+          repaint(container, buildHtml6(rulepack, character));
         }
       };
       paint2();
@@ -17672,11 +17859,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       });
       const cls = e.result?.outcomeKey ? `lv-${e.result.outcomeKey}` : "";
       return `
-      <tr>
+      <tr${e.undone ? ' class="is-undone"' : ""}>
         <td class="dim tiny mono">${esc(time)}</td>
         <td class="tiny">第 ${num(e.day)} 日</td>
         <td><span class="badge">${esc(KIND_LABELS[e.kind] ?? e.kind)}</span></td>
-        <td>${esc(e.label)}</td>
+        <td>${esc(e.label)}${e.undone ? '<span class="badge badge-dim">已撤销</span>' : ""}</td>
         <td class="num mono">${num(e.result?.finalRoll)}</td>
         <td class="num mono dim">${e.result?.detail?.threshold ?? "—"}</td>
         <td class="${esc(cls)}">${esc(e.result?.outcomeLabel ?? "—")}</td>
@@ -17765,7 +17952,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         return () => btn?.removeEventListener("click", handler);
       }
       const paint2 = () => {
-        container.innerHTML = buildHtml7(rulepack, character);
+        repaint(container, buildHtml7(rulepack, character));
       };
       const onClick = async (event) => {
         const target = event.target;
@@ -18008,7 +18195,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.10";
+  var APP_VERSION = "0.1.11";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
@@ -18274,7 +18461,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <span class="mono">attribution</span>、<span class="mono">characteristics</span>、
         <span class="mono">checkStrategy.resolve</span>），然后在
         <span class="mono">main.js</span> 注册一行。这一区上方的自检结果就是照着这份契约打的
-        —— 谁想自己写一套，能当场看出缺什么。</p>
+        —— 自行编写规则包时，可直接看出缺什么。</p>
       </details>
     </div>
   `, `${packs.length} 套 · ${disabled.length} 套已停用`);
@@ -18283,9 +18470,9 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const packName = rulepack?.manifest?.name ?? "";
     const packVersion = rulepack?.manifest?.version ?? "";
     return section("关于", `
-    <p>调查员助手 版本 <span class="mono">v${esc(APP_VERSION)}</span>${packVersion ? ` · ${esc(packName)} 规则 <span class="mono">v${esc(packVersion)}</span>` : ""}</p>
+    <p>调查员助手 版本 <span class="mono">${esc(APP_VERSION)}</span>${packVersion ? ` · ${esc(packName)} 规则 <span class="mono">v${esc(packVersion)}</span>` : ""}</p>
     <p class="field-help">反馈问题时，把这一行连同截图一并提供即可。
-      版本号也显示在左上角标题下方 —— 在线版与下载版都看得到。</p>
+      版本号亦显示于左上角标题下方，在线版与下载版均可查看。</p>
   `);
   }
   function appearanceSection() {
@@ -18509,7 +18696,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         </tr>
       `;
       }).join("");
-      container.innerHTML = `
+      repaint(container, `
       ${viewHead("存档与数据", "所有数据都保存在这台设备的浏览器里，不会上传到任何地方。")}
 
       <div class="grid-2 mb-4">
@@ -18547,7 +18734,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       ${rulepacksSection(rulepack)}
 
       ${aboutSection(rulepack)}
-    `;
+    `);
       const fileInput = container.querySelector("[data-file]");
       const onClick = async (event) => {
         const target = event.target;
@@ -19010,7 +19197,7 @@ ${rulepack.describeHouseRules(rulepack.getHouseRules())}`;
       brandSub.textContent = "TRPG Toolkit ";
       const versionTag = document.createElement("span");
       versionTag.className = "brand-version";
-      versionTag.textContent = `v${APP_VERSION}`;
+      versionTag.textContent = `· 版本 ${APP_VERSION}`;
       brandSub.append(versionTag);
     }
     initTooltip();
