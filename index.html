@@ -9978,6 +9978,27 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     }
     return rows.join("");
   }
+  function renderIntResult(outcome) {
+    const body = document.getElementById("modal-body");
+    if (!body) return;
+    const insane = outcome.insane;
+    body.innerHTML = `
+    <div class="roll-card ${insane ? "lv-bad" : "lv-ok"}">
+      <div class="roll-head">
+        <div class="roll-title">智力检定</div>
+        <div class="roll-verdict ${insane ? "lv-fail" : "lv-regular"}">${insane ? "陷入临时疯狂" : "未陷入疯狂"}</div>
+      </div>
+      <div class="roll-meta">
+        <span>掷出 <b>${num(outcome.roll)}</b></span>
+        <span>智力 <b>${num(outcome.intValue)}</b></span>
+      </div>
+      <p class="field-help">${esc(outcome.verdict)}</p>
+      <p class="field-help">${insane ? `已记为临时疯狂（约 ${num(outcome.hours)} 小时），在角色卡上标记「结束」即可清除。` : "待办已结清，无需再处理。"}</p>
+    </div>
+    <div class="btn-row mt-4">
+      <button type="button" class="btn btn-primary" data-insanity-prompt-action="done" data-autofocus>关闭</button>
+    </div>`;
+  }
   var activePrompt = null;
   var promptBound = false;
   function bindPrompt() {
@@ -9994,11 +10015,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
       });
     });
     body.addEventListener("click", (event) => {
-      var _a;
       const button = event.target.closest?.("[data-insanity-prompt-action]");
       const ctx = activePrompt;
       if (!button || !ctx) return;
-      if (getState().character !== ctx.character) {
+      const character = getState().character;
+      if (!character || character.id !== ctx.character.id) {
         closeModal();
         return;
       }
@@ -10007,28 +10028,31 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         closeModal();
         return;
       }
+      if (action === "done") {
+        closeModal();
+        return;
+      }
       if (action === "roll") {
-        const outcome = resolvePendingIntCheck(ctx.rulepack, ctx.character, createRng(newSeed()));
+        const outcome = resolvePendingIntCheck(ctx.rulepack, character, createRng(newSeed()));
         if (!outcome) {
           toast("智力值未填写或该待办已处理。请核对角色资料。", "bad");
           return;
         }
-        saveCharacter(ctx.character);
-        closeModal();
-        toast(`智力检定 ${num(outcome.roll)} / ${num(outcome.intValue)}：${outcome.insane ? `临时疯狂，约 ${num(outcome.hours)} 小时` : "未陷入临时疯狂"}`, outcome.insane ? "bad" : void 0, 5600);
+        saveCharacter(character);
+        renderIntResult(outcome);
         return;
       }
       if (action === "skip") {
-        delete ctx.character.extra.pendingIntCheck;
-        logState(ctx.character, "智力检定已跳过", "守秘人确认本次不检定", "裁定");
+        delete character.extra.pendingIntCheck;
+        logState(character, "智力检定已跳过", "守秘人确认本次不检定", "裁定");
       } else if (action === "chapter-end") {
-        finishIndefiniteInsanity(ctx.character, ctx.rulepack.recovery.autoRecoverOnDevelopmentPhase().detail);
+        finishIndefiniteInsanity(character, ctx.rulepack.recovery.autoRecoverOnDevelopmentPhase().detail);
       } else if (action === "confirm-indefinite") {
-        (_a = ctx.character).extra ?? (_a.extra = {});
-        ctx.character.extra.indefiniteInsanity = { active: true, day: num(ctx.character.extra.currentDay, 1), at: Date.now(), source: "守秘人确认" };
-        logState(ctx.character, "不定期疯狂已确认", "补记活动状态，未重复扣除理智", "裁定");
+        character.extra ?? (character.extra = {});
+        character.extra.indefiniteInsanity = { active: true, day: num(character.extra.currentDay, 1), at: Date.now(), source: "守秘人确认" };
+        logState(character, "不定期疯狂已确认", "补记活动状态，未重复扣除理智", "裁定");
       } else return;
-      saveCharacter(ctx.character);
+      saveCharacter(character);
       closeModal();
     });
   }
@@ -10046,7 +10070,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     ${character.extra.indefiniteInsanity?.active ? '<p class="field-help">不定期疯狂已成立，不因本次智力检定失败而解除。</p>' : ""}
     <p class="mono mt-3">智力目标 ${value}</p>
     ${value <= 0 ? '<p class="field-help">智力尚未填写。可暂后处理，并在角色资料中补充智力。</p>' : ""}
-    <div class="btn-row mt-4"><button type="button" class="btn btn-primary" data-insanity-prompt-action="roll" ${value <= 0 ? "disabled" : ""}>进行检定</button>
+    <p class="field-help">点「掷骰判定」即在本窗口掷出并给出结果。
+    想自己掷也可以：关掉本窗口，在角色卡的属性行点「智力」。
+    （抽屉里的「连续检定」只列技能，属性不在其中。）</p>
+    <div class="btn-row mt-4"><button type="button" class="btn btn-primary" data-insanity-prompt-action="roll" ${value <= 0 ? "disabled" : ""}>掷骰判定</button>
     <button type="button" class="btn" data-insanity-prompt-action="cancel">暂后处理</button>
     <button type="button" class="btn btn-ghost" data-insanity-prompt-action="skip">本局不检定</button></div>`, afterClose);
     return true;
@@ -14127,6 +14154,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         <b>连续检定</b>
         <span class="dim tiny">点一个即可换目标，不必关闭抽屉；难度与奖惩骰保留</span>
       </div>
+      <p class="field-help" style="margin:6px 0 0">这里只列<b>技能</b> —— 属性检定请从角色卡的属性行进入（属性那一栏点一下即可）。</p>
       <div class="quick-chips">
         ${top.map(chip).join("")}
       </div>
@@ -16612,9 +16640,11 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         未通过 → 心智关上了那扇门 → 暂时安然。
         目标值取当前的智力值 <b>${num(int)}</b>。</p>
       <div class="btn-row">
-        <button type="button" class="btn btn-primary" data-action="int-check">进行智力检定（目标 ${num(int)}）</button>
+        <button type="button" class="btn btn-primary" data-action="int-check">掷骰判定（目标 ${num(int)}）</button>
         <button type="button" class="btn btn-ghost" data-action="int-check-skip">本局不检定</button>
       </div>
+      <p class="field-help" style="margin:var(--s2) 0 0">本按钮<b>当场掷骰并给出结果</b>，结果留在本页下方。
+        需要自掷或查看骰面时，可在角色卡的属性行点「智力」—— 抽屉里的「连续检定」只列技能，属性不在其中。</p>
     </div>`;
   }
   function tempInsanityBlockHtml(state4) {
@@ -17978,7 +18008,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.9";
+  var APP_VERSION = "0.1.10";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
