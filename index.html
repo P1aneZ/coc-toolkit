@@ -10388,6 +10388,14 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
        * 等于命中率虚高，KP 会直接觉得工具算错了。改为由 KP 填写；未填则不予结算。
        */
       atkSkillOverride: "",
+      /**
+       * 守方的「本次反击技能值」。
+       *
+       * 反击按守方的「斗殴」对抗，而临时参战者没有角色卡 —— `skillValueOf` 对它只会返回
+       * 名单上的闪避，斗殴一律读作 0。于是「上一轮选了反击、这一轮目标换成杂兵」时，
+       * 按钮看着能点、点下去只弹一句提示，界面上却没有地方能补这个值。
+       */
+      defSkillOverride: "",
       armorId: "none",
       manual: false,
       atkRoll: "",
@@ -10731,6 +10739,15 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             ${tipAttrs({ title: o.label, body: o.hint })}>${esc(o.label)}</button>`).join("")}
       </div>
       <span class="field-help">两种应对的平手裁定方向相反 —— 这是桌上最容易记混的一处。</span>
+      ${form.defense === "fightback" && defender && !defender.characterId ? `
+        <label class="field mt-3">
+          <span class="field-label">本次反击技能值（斗殴）
+            <span class="dim">临时参战者没有角色卡，读不到斗殴</span></span>
+          <input type="number" data-attack="defSkillOverride" value="${esc(form.defSkillOverride)}"
+            min="0" max="200" placeholder="例如 45" aria-label="守方本次反击使用的斗殴技能值">
+          <span class="field-help">反击以守方的「斗殴」与攻击方对抗。临时参战者的该值无从读取，须在此填写；
+            未填时不予结算 —— 按 0 计算会让攻击方的命中率虚高。</span>
+        </label>` : ""}
     </div>
   ` : `
     <div class="field">
@@ -10744,7 +10761,10 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     const needSkillOverride = Boolean(attacker) && !attacker.characterId;
     const skillReady = !needSkillOverride || num(form.atkSkillOverride) > 0;
     if (needSkillOverride && !skillReady) missing.push("本次技能值");
-    const resolveHint = list.length === 0 ? "先添加参战者" : missing.length ? `还差：${missing.join("、")}` : needSkillOverride ? "命中技能值取上方填写的数值" : "技能值会自动从角色卡读取";
+    const needDefSkillOverride = Boolean(defender) && !defender.characterId && form.defense === "fightback";
+    const defSkillReady = !needDefSkillOverride || num(form.defSkillOverride) > 0;
+    if (needDefSkillOverride && !defSkillReady) missing.push("守方斗殴值");
+    const resolveHint = list.length === 0 ? "先添加参战者" : missing.length ? `还差：${missing.join("、")}` : needSkillOverride || needDefSkillOverride ? "技能值取上方填写的数值" : "技能值会自动从角色卡读取";
     const hitLocationHtml = `
     <div class="form-group" style="margin-bottom:var(--s4)">
       <label class="checkbox-row">
@@ -10874,7 +10894,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
       <div class="btn-row">
         <button type="button" class="btn btn-primary" data-action="resolve-attack"
-          ${form.attackerId && skillReady && (firearm || form.defenderId || form.defense === "none") ? "" : "disabled"}>结算这次攻击</button>
+          ${missing.length === 0 ? "" : "disabled"}>结算这次攻击</button>
         <span class="hint dim">${esc(resolveHint)}</span>
       </div>
     </div>
@@ -10921,7 +10941,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     if (!lastAttack) return "";
     if (lastAttack.error) return notice(esc(lastAttack.error), "warn");
     const r = lastAttack;
-    const tone = r.hit || r.attackerHurt ? "lv-bad" : r.malfunction ? "lv-warn" : "lv-ok";
+    const tone = r.hit ? "lv-ok" : r.malfunction ? "lv-warn" : "lv-bad";
     const diceRow = (c, label) => {
       if (!c) return "";
       const cls = c.outcomeKey ? `lv-${c.outcomeKey}` : "";
@@ -10935,7 +10955,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
     <div class="roll-card ${tone}" style="margin-top:var(--s4)" data-combat-result tabindex="-1" role="region" aria-label="最近攻击结算">
       <div class="roll-head">
         <div class="roll-title">${esc(r.attackerName)} → ${esc(r.defenderName || "—")} · ${esc(r.weaponLabel)}</div>
-        <div class="roll-verdict ${r.hit ? "lv-fail" : r.malfunction ? "lv-regular" : "lv-extreme"}">${esc(r.verdict)}</div>
+        <div class="roll-verdict ${r.hit ? "lv-extreme" : r.malfunction ? "lv-regular" : "lv-fail"}">${esc(r.verdict)}</div>
       </div>
 
       <div class="roll-meta">
@@ -11204,7 +11224,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
         const seed = newSeed();
         const rng = createRng(seed);
         const atkSkill = num(form.atkSkillOverride) > 0 ? num(form.atkSkillOverride) : await skillValueOf(attacker, weapon.skill, rulepack);
-        const defSkill = firearm || form.defense === "none" ? 0 : await skillValueOf(defender, form.defense === "fightback" ? "fighting_brawl" : "dodge", rulepack);
+        const defSkill = firearm || form.defense === "none" ? 0 : form.defense === "fightback" && num(form.defSkillOverride) > 0 ? num(form.defSkillOverride) : await skillValueOf(defender, form.defense === "fightback" ? "fighting_brawl" : "dodge", rulepack);
         const db = await damageBonusOf(attacker);
         const armor = armorPool(rulepack, defender ? cachedCharacter(defender) : null).find((a) => a.id === form.armorId)?.value ?? 0;
         const aimed = Boolean(form.hitLocations && form.aimedLocation);
@@ -11676,6 +11696,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
             if (field === "defenderId") {
               const ch = cachedCharacter(findBy(form.defenderId));
               form.armorId = (ch ? registeredArmorId(ch) : "") || "none";
+              form.defSkillOverride = "";
             }
             if (field === "attackerId") form.atkSkillOverride = "";
           }
@@ -18195,7 +18216,7 @@ details.card-tight > summary:hover { color: var(--accent-hi); }
 
   // src/core/backup.js
   var BACKUP_SCHEMA_VERSION = 1;
-  var APP_VERSION = "0.1.11";
+  var APP_VERSION = "0.1.12";
   var MAX_ROLL_ENTRIES = 500;
   var MAX_LOG_ENTRIES = 5e3;
   var MAX_ID_LENGTH = 120;
